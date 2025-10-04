@@ -127,7 +127,7 @@ fun MainScreen(onThemeSettingsChanged: (ThemeSettings) -> Unit = {}) {
                             containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surface,
                             titleContentColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
                         ),
-                        modifier = Modifier.height(48.dp) // Reduced height for less spacing
+                        modifier = Modifier.height(0.dp) // Reduced height for less spacing
                     )
                 }
             }
