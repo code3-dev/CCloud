@@ -34,7 +34,7 @@
         <activity
             android:name=".VideoPlayerActivity"
             android:exported="false"
-            android:theme="@style/Theme.CCloud"
+            android:theme="@style/Theme.CCloud.FullScreen"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:screenOrientation="landscape" />
     </application>
