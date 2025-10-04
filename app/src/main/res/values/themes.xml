@@ -2,4 +2,10 @@
 <resources>
 
     <style name="Theme.CCloud" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="Theme.CCloud.FullScreen" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+      <item name="android:windowFullscreen">true</item>
+      <item name="android:windowNoTitle">true</item>
+      <item name="android:windowActionBar">false</item>
+    </style>
 </resources>
