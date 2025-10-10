@@ -36,6 +36,20 @@
 
 CCloud is a modern Android streaming application built with Jetpack Compose and Kotlin. The app provides a sleek user interface for browsing movies and TV series, playing videos, and customizing the viewing experience. With a focus on user experience and performance, CCloud delivers high-quality streaming content in an intuitive and visually appealing interface.
 
+## 📦 Download Latest CCloud APKs
+
+<div align="center">
+
+### 🔰 Architecture-Specific Builds
+
+[![ARM64-v8a](https://img.shields.io/badge/⬇️%20Download-ARM64--v8a-brightgreen?style=for-the-badge&logo=android)](https://github.com/code3-dev/CCloud/releases/latest/download/CCloud-arm64-v8a.apk)
+
+[![ARMEABI-v7a](https://img.shields.io/badge/⬇️%20Download-ARMEABI--v7a-blue?style=for-the-badge&logo=android)](https://github.com/code3-dev/CCloud/releases/latest/download/CCloud-armeabi-v7a.apk)
+
+[![Universal](https://img.shields.io/badge/⬇️%20Download-Universal-purple?style=for-the-badge&logo=android)](https://github.com/code3-dev/CCloud/releases/latest/download/CCloud-universal.apk)
+
+</div>
+
 ## 🚀 Key Features
 
 ### 🎬 Content Discovery
