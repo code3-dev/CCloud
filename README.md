@@ -1,4 +1,4 @@
-# CCloud - Movie & TV Series Streaming App
+# CCloud - Movie & TV Series Streaming Application
 
 <p align="center">
   <img src="app/src/main/res/drawable/splash_logo.png" alt="CCloud Logo" width="150"/>
@@ -332,6 +332,26 @@ When watching videos on Android TV, you can control playback using your remote c
 2. **Smooth Scrolling**: Content lists support smooth scrolling with the D-pad
 3. **Quick Access**: The sidebar is always accessible for quick navigation between main sections
 4. **Exit App**: Press the **Back** button repeatedly until you exit the app
+
+## 📈 Repository Statistics
+
+<div align="center">
+
+### ⭐ Stars History
+
+[![Stargazers over time](https://starchart.cc/code3-dev/CCloud.svg?variant=adaptive)](https://starchart.cc/code3-dev/CCloud)
+
+---
+
+### 📊 Downloads History
+
+![GitHub all releases](https://img.shields.io/github/downloads/code3-dev/CCloud/total?style=for-the-badge&label=Total%20Downloads)
+![GitHub release (latest by date)](https://img.shields.io/github/downloads/code3-dev/CCloud/latest/total?style=for-the-badge&label=Latest%20Release)
+
+<!-- Optional: Add a visual chart using github-readme-stats -->
+![GitHub stats](https://github-readme-stats.vercel.app/api/pin/?username=code3-dev&repo=CCloud&theme=tokyonight&show_owner=true)
+
+</div>
 
 ## 🤝 Contributing
 
