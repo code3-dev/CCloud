@@ -4,6 +4,10 @@
   <img src="app/src/main/res/drawable/splash_logo.png" alt="CCloud Logo" width="150"/>
 </p>
 
+<div align="center">
+  <img src="https://img.shields.io/github/downloads/code3-dev/CCloud/total?label=Downloads&style=for-the-badge" alt="Downloads Badge">
+</div>
+
 CCloud is a modern Android streaming application built with Jetpack Compose and Kotlin. The app provides a sleek user interface for browsing movies and TV series, playing videos, and customizing the viewing experience. With a focus on user experience and performance, CCloud delivers high-quality streaming content in an intuitive and visually appealing interface.
 
 ## 🚀 Key Features
