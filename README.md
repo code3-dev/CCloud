@@ -5,8 +5,34 @@
 </p>
 
 <div align="center">
+
+  <!-- Downloads -->
   <img src="https://img.shields.io/github/downloads/code3-dev/CCloud/total?label=Downloads&style=for-the-badge" alt="Downloads Badge">
+
+  <!-- Main language -->
+  <img src="https://img.shields.io/github/languages/top/code3-dev/CCloud?color=blue&label=Kotlin&style=for-the-badge" alt="Language">
+
+  <!-- License -->
+  <img src="https://img.shields.io/github/license/code3-dev/CCloud?style=for-the-badge" alt="License">
+
+  <!-- Stars -->
+  <img src="https://img.shields.io/github/stars/code3-dev/CCloud?style=for-the-badge" alt="Stars">
+
+  <!-- Issues -->
+  <img src="https://img.shields.io/github/issues/code3-dev/CCloud?style=for-the-badge" alt="Issues">
+
+  <!-- Build Status -->
+  <img src="https://img.shields.io/github/actions/workflow/status/code3-dev/CCloud/build-appshare.yml?label=Build&style=for-the-badge" alt="Build Status">
+
+  <!-- Min Android Version -->
+  <img src="https://img.shields.io/badge/Android-9.0%2B-green?style=for-the-badge&logo=android" alt="Min Android">
+
+  <!-- UI Toolkit -->
+  <img src="https://img.shields.io/badge/UI-Jetpack%20Compose-purple?style=for-the-badge" alt="Jetpack Compose">
+
 </div>
+
+---
 
 CCloud is a modern Android streaming application built with Jetpack Compose and Kotlin. The app provides a sleek user interface for browsing movies and TV series, playing videos, and customizing the viewing experience. With a focus on user experience and performance, CCloud delivers high-quality streaming content in an intuitive and visually appealing interface.
 
