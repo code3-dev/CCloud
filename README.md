@@ -362,9 +362,6 @@ When watching videos on Android TV, you can control playback using your remote c
 ![GitHub all releases](https://img.shields.io/github/downloads/code3-dev/CCloud/total?style=for-the-badge&label=Total%20Downloads)
 ![GitHub release (latest by date)](https://img.shields.io/github/downloads/code3-dev/CCloud/latest/total?style=for-the-badge&label=Latest%20Release)
 
-<!-- Optional: Add a visual chart using github-readme-stats -->
-![GitHub stats](https://github-readme-stats.vercel.app/api/pin/?username=code3-dev&repo=CCloud&theme=tokyonight&show_owner=true)
-
 </div>
 
 ## 🤝 Contributing
