@@ -16,7 +16,8 @@ open class BaseRepository {
     
     // Helper servers array
     protected val helperServers = arrayOf(
-        "https://hostinnegar.com"
+        "https://hostinnegar.com",
+        "https://windowsdiba.info"
     )
     
     protected suspend fun executeRequest(
