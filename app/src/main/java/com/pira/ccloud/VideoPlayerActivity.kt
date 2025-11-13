@@ -261,13 +261,14 @@ class VideoPlayerActivity : ComponentActivity() {
             // Ignore fullscreen errors
         }
         
-        // Resume player when activity resumes
+        // Player will remain paused until user manually starts it
         try {
             if (playerInitialized && exoPlayer != null) {
-                exoPlayer?.playWhenReady = true
+                // Keep player paused - let user manually start playback
+                exoPlayer?.playWhenReady = false
             }
         } catch (e: Exception) {
-            // Ignore player resume errors
+            // Ignore player state errors
         }
     }
     
@@ -275,13 +276,15 @@ class VideoPlayerActivity : ComponentActivity() {
         super.onPause()
         isActivityResumed = false
         
-        // Pause player when activity pauses
+        // Stop player completely when activity pauses (app switch or screen off)
         try {
             if (playerInitialized && exoPlayer != null) {
                 exoPlayer?.playWhenReady = false
+                // Note: currentPosition is managed in the Composable scope
+                // Player will remain paused until user manually starts it
             }
         } catch (e: Exception) {
-            // Ignore player pause errors
+            // Ignore player stop errors
         }
     }
 }
