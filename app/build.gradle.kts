@@ -14,14 +14,17 @@ android {
 
     defaultConfig {
         applicationId = "com.pira.ccloud"
-        // Supported Android versions: Android 9.0 (API 28) and higher
-        // Android 8.x and below are not supported due to Jetpack Compose limitations
-        minSdk = 26
+        // Supported Android versions: Android 7.0 (API 24) and higher
+        // Android 6.0 (API 23) and earlier are not supported
+        minSdk = 24
         targetSdk = 36
-        versionCode = 16
-        versionName = "1.1.5"
+        versionCode = 17
+        versionName = "1.1.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        // Add memory management options
+        multiDexEnabled = true
     }
     
     buildFeatures {
@@ -70,6 +73,13 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    
+    // Add compatibility configurations for older Android versions
+    packagingOptions {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
     }
     
     // Add support for different screen sizes including TV

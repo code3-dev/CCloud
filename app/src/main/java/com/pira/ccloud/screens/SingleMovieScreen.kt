@@ -553,7 +553,7 @@ fun SourceOptionsDialog(
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Play in App")
+                    Text("Play in CCloud")
                 }
                 
                 // Cancel button moved to the bottom of the dialog

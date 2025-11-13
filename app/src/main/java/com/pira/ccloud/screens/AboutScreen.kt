@@ -38,6 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.pira.ccloud.BuildConfig
 import com.pira.ccloud.R
 
@@ -81,8 +83,11 @@ fun AboutScreen(navController: NavController?) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // App Logo
-            Image(
-                painter = painterResource(id = R.drawable.splash_logo),
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(R.drawable.splash_logo)
+                    .crossfade(true)
+                    .build(),
                 contentDescription = "App Logo",
                 modifier = Modifier.size(120.dp)
             )

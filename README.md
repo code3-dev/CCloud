@@ -25,7 +25,7 @@
   <img src="https://img.shields.io/github/actions/workflow/status/code3-dev/CCloud/build-appshare.yml?label=Build&style=for-the-badge" alt="Build Status">
 
   <!-- Min Android Version -->
-  <img src="https://img.shields.io/badge/Android-9.0%2B-green?style=for-the-badge&logo=android" alt="Min Android">
+  <img src="https://img.shields.io/badge/Android-7.0%2B-green?style=for-the-badge&logo=android" alt="Min Android">
 
   <!-- UI Toolkit -->
   <img src="https://img.shields.io/badge/UI-Jetpack%20Compose-purple?style=for-the-badge" alt="Jetpack Compose">
@@ -113,16 +113,16 @@ The app follows a clean architecture pattern with the following components:
 
 ## 📱 Supported Android Versions
 
-CCloud supports Android 9.0 (API level 28) and higher. The app is optimized for:
+CCloud supports Android 7.0 (API level 24) and higher. The app is optimized for:
 
-- **Android 9.0 - 16** (API levels 28-36)
+- **Android 7.0 - 16** (API levels 24-36)
 - **Android TV** devices
 - **Tablets** and large-screen devices
 
 ### Compatibility Notes
 
-- **Android 8.x and below**: Not supported due to Jetpack Compose limitations
-- **Android 9.0+**: Full feature support with optimal performance
+- **Android 6.0 and earlier**: Not supported due to Jetpack Compose limitations
+- **Android 7.0+**: Full feature support with optimal performance
 - **Android TV**: Specialized UI with remote control navigation
 
 ## Getting Started
