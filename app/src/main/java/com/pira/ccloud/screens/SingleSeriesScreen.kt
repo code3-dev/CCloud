@@ -513,13 +513,42 @@ fun SeriesDetailsContent(
                     isFavorite = StorageUtils.isFavorite(context, seriesId, "series")
                 }
                 
+                var showRemoveFavoriteDialog by remember { mutableStateOf(false) }
+                
+                // Confirmation dialog for removing from favorites
+                if (showRemoveFavoriteDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showRemoveFavoriteDialog = false },
+                        title = { Text("Remove from Favorites") },
+                        text = { Text("Are you sure you want to remove this series from your favorites?") },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    StorageUtils.removeFavorite(context, seriesId, "series")
+                                    isFavorite = false
+                                    showRemoveFavoriteDialog = false
+                                    // Show toast
+                                    android.widget.Toast.makeText(context, "Removed from favorites", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            ) {
+                                Text("Remove")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = { showRemoveFavoriteDialog = false }
+                            ) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
+                }
+                
                 IconButton(
                     onClick = {
                         if (isFavorite) {
-                            StorageUtils.removeFavorite(context, seriesId, "series")
-                            isFavorite = false
-                            // Show toast
-                            android.widget.Toast.makeText(context, "Removed from favorites", android.widget.Toast.LENGTH_SHORT).show()
+                            // Show confirmation dialog instead of directly removing
+                            showRemoveFavoriteDialog = true
                         } else {
                             // Convert series to favorite item
                             val favoriteItem = FavoriteItem(

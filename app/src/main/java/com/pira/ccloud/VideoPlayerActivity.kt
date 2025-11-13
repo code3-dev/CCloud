@@ -158,36 +158,6 @@ class VideoPlayerActivity : ComponentActivity() {
         }
     }
     
-    private fun checkAndRequestBrightnessPermission() {
-        try {
-            // Check if we have permission to write system settings
-            if (!Settings.System.canWrite(this)) {
-                // Request permission to write system settings
-                val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
-                intent.data = Uri.parse("package:${packageName}")
-                startActivityForResult(intent, REQUEST_WRITE_SETTINGS)
-            }
-        } catch (e: Exception) {
-            // Ignore permission request errors on TV
-        }
-    }
-    
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_WRITE_SETTINGS) {
-            // Permission result for writing system settings
-            try {
-                if (Settings.System.canWrite(this)) {
-                    // Permission granted
-                } else {
-                    // Permission denied - we'll work with window-level brightness only
-                }
-            } catch (e: Exception) {
-                // Ignore permission errors
-            }
-        }
-    }
-    
     // Handle TV remote control key events
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
         try {
@@ -329,18 +299,13 @@ fun VideoPlayerScreen(
     var showControls by remember { mutableStateOf(true) }
     var isSeeking by remember { mutableStateOf(false) }
     var playerError by remember { mutableStateOf<String?>(null) }
+    var isRetrying by remember { mutableStateOf(false) }
     var showForwardIndicator by remember { mutableStateOf(false) }
     var showRewindIndicator by remember { mutableStateOf(false) }
     var wasPlayingBeforeSeek by remember { mutableStateOf(false) }
     var playbackSpeed by remember { mutableStateOf(1.0f) }
     var showSpeedDropdown by remember { mutableStateOf(false) }
     var playerInitialized by remember { mutableStateOf(false) }
-    
-    // Brightness and volume control states
-    var showBrightnessIndicator by remember { mutableStateOf(false) }
-    var showVolumeIndicator by remember { mutableStateOf(false) }
-    var brightnessLevel by remember { mutableStateOf(0f) }
-    var volumeLevel by remember { mutableStateOf(0f) }
     
     // Predefined playback speed options
     val speedOptions = remember {
@@ -399,15 +364,21 @@ fun VideoPlayerScreen(
                 try {
                     setMediaItem(MediaItem.fromUri(Uri.parse(videoUrl)))
                     prepare()
+                    // If we're retrying, seek to the current position
+                    if (isRetrying && currentPosition > 0) {
+                        seekTo(currentPosition)
+                    }
                     playWhenReady = true // Start playing by default
                     // Set initial playback speed
                     setPlaybackSpeed(playbackSpeed)
                 } catch (e: Exception) {
-                    playerError = "Failed to initialize player: ${e.message}"
+                    // Don't show error, just mark as retrying
+                    isRetrying = true
                 }
             }
         } catch (e: Exception) {
-            playerError = "Failed to create player: ${e.message}"
+            // Don't show error, just mark as retrying
+            isRetrying = true
             null
         }
     }
@@ -475,7 +446,31 @@ fun VideoPlayerScreen(
             }
             
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                // Don't show error message, just mark as retrying
+                isRetrying = true
                 playerError = error.message
+                
+                // Store current position before retrying
+                val retryPosition = currentPosition
+                
+                // Attempt to retry after a delay
+                CoroutineScope(Dispatchers.Main).launch {
+                    delay(3000) // Wait 3 seconds before retrying
+                    try {
+                        exoPlayer?.let { player ->
+                            // Retry loading the media
+                            player.setMediaItem(MediaItem.fromUri(Uri.parse(videoUrl)))
+                            player.prepare()
+                            // Seek to the stored position after preparing
+                            player.seekTo(retryPosition)
+                            player.playWhenReady = true
+                            isRetrying = false
+                            playerError = null
+                        }
+                    } catch (e: Exception) {
+                        // If retry fails, keep isRetrying true
+                    }
+                }
             }
         }
     }
@@ -653,214 +648,7 @@ fun VideoPlayerScreen(
                     // Ignore gesture detection errors
                 }
             }
-            // Add swipe gesture detection for brightness and volume control
-            .pointerInput(Unit) {
-                var initialX = 0f
-                var initialY = 0f
-                var isTracking = false
-                var trackingSide: String? = null // "left" for brightness, "right" for volume
-                var initialBrightness = 0f
-                var initialVolume = 0f
-                
-                try {
-                    detectDragGestures(
-                        onDragStart = { offset ->
-                            try {
-                                initialX = offset.x
-                                initialY = offset.y
-                                isTracking = true
-                                
-                                // Determine which side of the screen the gesture started on
-                                val screenWidth = size.width
-                                if (initialX < screenWidth * 0.5f) {
-                                    trackingSide = "left" // Left side for brightness
-                                } else {
-                                    trackingSide = "right" // Right side for volume
-                                }
-                                
-                                // Get initial brightness and volume levels
-                                when (trackingSide) {
-                                    "left" -> {
-                                        val window = (context as Activity).window
-                                        val layoutParams = window.attributes
-                                        initialBrightness = layoutParams.screenBrightness
-                                        if (initialBrightness < 0) {
-                                            // If brightness is set to system default, get the current system brightness
-                                            try {
-                                                val brightnessMode = Settings.System.getInt(
-                                                    context.contentResolver,
-                                                    Settings.System.SCREEN_BRIGHTNESS_MODE
-                                                )
-                                                if (brightnessMode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC) {
-                                                    // For automatic brightness, we'll use a default value
-                                                    initialBrightness = 0.5f // Default to 50%
-                                                } else {
-                                                    val systemBrightness = Settings.System.getInt(
-                                                        context.contentResolver,
-                                                        Settings.System.SCREEN_BRIGHTNESS
-                                                    )
-                                                    initialBrightness = systemBrightness / 255f
-                                                }
-                                            } catch (e: Exception) {
-                                                initialBrightness = 0.5f // Default to 50%
-                                            }
-                                        }
-                                        brightnessLevel = initialBrightness
-                                        showBrightnessIndicator = true
-                                    }
-                                    "right" -> {
-                                        try {
-                                            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                                            val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                                            val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-                                            initialVolume = currentVolume.toFloat()
-                                            volumeLevel = initialVolume / maxVolume.toFloat()
-                                            showVolumeIndicator = true
-                                        } catch (e: Exception) {
-                                            // Ignore audio manager errors
-                                        }
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                // Ignore drag start errors
-                            }
-                        },
-                        onDragEnd = {
-                            try {
-                                isTracking = false
-                                trackingSide = null
-                                
-                                // Hide indicators after a delay
-                                CoroutineScope(Dispatchers.Main).launch {
-                                    try {
-                                        delay(1000)
-                                        showBrightnessIndicator = false
-                                        showVolumeIndicator = false
-                                    } catch (e: Exception) {
-                                        // Ignore delay errors
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                // Ignore drag end errors
-                            }
-                        },
-                        onDragCancel = {
-                            try {
-                                isTracking = false
-                                trackingSide = null
-                                showBrightnessIndicator = false
-                                showVolumeIndicator = false
-                            } catch (e: Exception) {
-                                // Ignore drag cancel errors
-                            }
-                        },
-                        onDrag = { change, dragAmount ->
-                            try {
-                                if (!isTracking) return@detectDragGestures
-                                
-                                val dragY = dragAmount.y
-                                
-                                // Only process vertical drag gestures
-                                if (abs(dragY) > abs(change.position.x - initialX) * 0.5f) {
-                                    when (trackingSide) {
-                                        "left" -> {
-                                            // Adjust brightness based on vertical drag (up = increase, down = decrease)
-                                            val delta = -dragY * 0.01f // Invert Y axis (up is negative)
-                                            brightnessLevel = (initialBrightness + delta).coerceIn(0f, 1f)
-                                            
-                                            try {
-                                                // Apply brightness change to the current window
-                                                val window = (context as Activity).window
-                                                val layoutParams = window.attributes
-                                                layoutParams.screenBrightness = brightnessLevel
-                                                window.attributes = layoutParams
-                                                
-                                                // Also try to change system brightness if we have permission
-                                                if (Settings.System.canWrite(context)) {
-                                                    Settings.System.putInt(
-                                                        context.contentResolver,
-                                                        Settings.System.SCREEN_BRIGHTNESS,
-                                                        (brightnessLevel * 255).toInt()
-                                                    )
-                                                }
-                                                
-                                                // Update UI indicator
-                                                showBrightnessIndicator = true
-                                            } catch (e: Exception) {
-                                                // Ignore permission or other errors
-                                            }
-                                        }
-                                        "right" -> {
-                                            // Adjust volume based on vertical drag (up = increase, down = decrease)
-                                            try {
-                                                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                                                val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                                                val delta = -dragY * 0.01f * maxVolume // Invert Y axis (up is negative)
-                                                val newVolume = (initialVolume + delta).coerceIn(0f, maxVolume.toFloat())
-                                                
-                                                // Apply volume change
-                                                audioManager.setStreamVolume(
-                                                    AudioManager.STREAM_MUSIC,
-                                                    newVolume.toInt(),
-                                                    0 // No flags
-                                                )
-                                                
-                                                // Update volume level for UI indicator
-                                                volumeLevel = newVolume / maxVolume.toFloat()
-                                                
-                                                // Update UI indicator
-                                                showVolumeIndicator = true
-                                            } catch (e: Exception) {
-                                                // Ignore permission or other errors
-                                            }
-                                        }
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                // Ignore drag errors
-                            }
-                        }
-                    )
-                } catch (e: Exception) {
-                    // Ignore gesture detection errors
-                }
-            }
     ) {
-        // Show error message if player failed to initialize
-        if (playerError != null) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        text = playerError ?: "Unknown error occurred",
-                        color = Color.Red,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .background(
-                                color = Color.Black.copy(alpha = 0.7f),
-                                shape = androidx.compose.foundation.shape.CircleShape
-                            )
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White
-                        )
-                    }
-                }
-            }
-            return@Box
-        }
-        
         // Check if player is initialized
         if (exoPlayer == null) {
             Box(
@@ -969,64 +757,6 @@ fun VideoPlayerScreen(
             }
         }
         
-        // Brightness indicator
-        if (showBrightnessIndicator) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
-                        .padding(16.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.BrightnessMedium,
-                        contentDescription = "Brightness",
-                        tint = Color.White,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Text(
-                        text = "${(brightnessLevel * 100).toInt()}%",
-                        color = Color.White,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
-            }
-        }
-        
-        // Volume indicator
-        if (showVolumeIndicator) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
-                        .padding(16.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.VolumeUp,
-                        contentDescription = "Volume",
-                        tint = Color.White,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Text(
-                        text = "${(volumeLevel * 100).toInt()}%",
-                        color = Color.White,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
-            }
-        }
-        
         // Custom controls overlay
         if (showControls) {
             Column(
@@ -1089,40 +819,49 @@ fun VideoPlayerScreen(
                         .background(Color.Black.copy(alpha = 0.7f))
                         .padding(16.dp)
                 ) {
-                    // Progress slider
-                    Slider(
-                        value = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
-                        onValueChange = { progress ->
-                            // Store the playing state before seeking
-                            if (!isSeeking) {
-                                wasPlayingBeforeSeek = isPlaying
-                            }
-                            isSeeking = true
-                            val newPosition = (progress * duration).toLong()
-                            try {
-                                exoPlayer?.seekTo(newPosition)
-                                currentPosition = newPosition
-                                // Keep the player playing during seeking if it was playing before
-                                if (wasPlayingBeforeSeek) {
-                                    exoPlayer?.playWhenReady = true
+                    // Progress slider with retry animation
+                    if (isRetrying) {
+                        // Show animated progress bar when retrying
+                        androidx.compose.material3.LinearProgressIndicator(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                        )
+                    } else {
+                        Slider(
+                            value = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
+                            onValueChange = { progress ->
+                                // Store the playing state before seeking
+                                if (!isSeeking) {
+                                    wasPlayingBeforeSeek = isPlaying
                                 }
-                            } catch (e: Exception) {
-                                // Ignore seek errors
-                            }
-                        },
-                        onValueChangeFinished = {
-                            isSeeking = false
-                            // Restore the playing state after seeking is finished
-                            try {
-                                exoPlayer?.playWhenReady = wasPlayingBeforeSeek
-                                // Update isPlaying state to match the player's actual state
-                                isPlaying = wasPlayingBeforeSeek
-                            } catch (e: Exception) {
-                                // Ignore errors
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                                isSeeking = true
+                                val newPosition = (progress * duration).toLong()
+                                try {
+                                    exoPlayer?.seekTo(newPosition)
+                                    currentPosition = newPosition
+                                    // Keep the player playing during seeking if it was playing before
+                                    if (wasPlayingBeforeSeek) {
+                                        exoPlayer?.playWhenReady = true
+                                    }
+                                } catch (e: Exception) {
+                                    // Ignore seek errors
+                                }
+                            },
+                            onValueChangeFinished = {
+                                isSeeking = false
+                                // Restore the playing state after seeking is finished
+                                try {
+                                    exoPlayer?.playWhenReady = wasPlayingBeforeSeek
+                                    // Update isPlaying state to match the player's actual state
+                                    isPlaying = wasPlayingBeforeSeek
+                                } catch (e: Exception) {
+                                    // Ignore errors
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                     
                     // Time and controls row
                     Row(
@@ -1137,6 +876,35 @@ fun VideoPlayerScreen(
                         )
                         
                         Spacer(modifier = Modifier.weight(1f))
+                        
+                        // Retry button when there's an error
+                        if (isRetrying) {
+                            Text(
+                                text = "Retrying...",
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier
+                                    .clickable { 
+                                        // Manual retry
+                                        try {
+                                            exoPlayer?.let { player ->
+                                                // Store current position before retrying
+                                                val retryPosition = currentPosition
+                                                player.setMediaItem(MediaItem.fromUri(Uri.parse(videoUrl)))
+                                                player.prepare()
+                                                // Seek to the stored position after preparing
+                                                player.seekTo(retryPosition)
+                                                player.playWhenReady = true
+                                                isRetrying = false
+                                                playerError = null
+                                            }
+                                        } catch (e: Exception) {
+                                            // If manual retry fails, keep isRetrying true
+                                        }
+                                    }
+                                    .padding(horizontal = 8.dp)
+                            )
+                        }
                         
                         // Video speed controls
                         Row(

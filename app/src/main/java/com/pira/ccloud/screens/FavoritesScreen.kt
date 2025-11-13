@@ -617,6 +617,48 @@ fun FavoritesScreen(navController: NavController) {
                 }
             }
         } else {
+            // State variables for the confirmation dialog
+            var showRemoveFavoriteDialog by remember { mutableStateOf(false) }
+            var favoriteToRemove by remember { mutableStateOf<FavoriteItem?>(null) }
+            
+            // Confirmation dialog for removing from favorites
+            if (showRemoveFavoriteDialog && favoriteToRemove != null) {
+                AlertDialog(
+                    onDismissRequest = { showRemoveFavoriteDialog = false },
+                    title = { Text("Remove from Favorites") },
+                    text = { Text("Are you sure you want to remove \"${favoriteToRemove!!.title}\" from your favorites?") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                StorageUtils.removeFavorite(context, favoriteToRemove!!.id, favoriteToRemove!!.type)
+                                // Refresh the favorites list
+                                favorites = if (selectedGroup != null && !selectedGroup!!.isDefault) {
+                                    StorageUtils.getFavoritesInGroup(context, selectedGroup!!.id)
+                                } else {
+                                    StorageUtils.loadAllFavorites(context)
+                                }
+                                showRemoveFavoriteDialog = false
+                                favoriteToRemove = null
+                                // Show toast
+                                android.widget.Toast.makeText(context, "Removed from favorites", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        ) {
+                            Text("Remove")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { 
+                                showRemoveFavoriteDialog = false
+                                favoriteToRemove = null
+                            }
+                        ) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
+            
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -642,15 +684,8 @@ fun FavoritesScreen(navController: NavController) {
                             }
                         },
                         onDelete = {
-                            StorageUtils.removeFavorite(context, favorite.id, favorite.type)
-                            // Refresh the favorites list
-                            favorites = if (selectedGroup != null && !selectedGroup!!.isDefault) {
-                                StorageUtils.getFavoritesInGroup(context, selectedGroup!!.id)
-                            } else {
-                                StorageUtils.loadAllFavorites(context)
-                            }
-                            // Show toast
-                            android.widget.Toast.makeText(context, "Removed from favorites", android.widget.Toast.LENGTH_SHORT).show()
+                            favoriteToRemove = favorite
+                            showRemoveFavoriteDialog = true
                         },
                         onMoveToGroup = { item ->
                             selectedItem = item
@@ -761,8 +796,8 @@ fun FavoriteItemCard(
                     DropdownMenuItem(
                         text = { Text("Delete") },
                         onClick = {
-                            onDelete()
                             showMenu = false
+                            onDelete()
                         }
                     )
                 }

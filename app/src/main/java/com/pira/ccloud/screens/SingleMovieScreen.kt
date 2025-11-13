@@ -287,13 +287,42 @@ fun MovieDetailsContent(
                 isFavorite = StorageUtils.isFavorite(context, movieId, "movie")
             }
             
+            var showRemoveFavoriteDialog by remember { mutableStateOf(false) }
+            
+            // Confirmation dialog for removing from favorites
+            if (showRemoveFavoriteDialog) {
+                AlertDialog(
+                    onDismissRequest = { showRemoveFavoriteDialog = false },
+                    title = { Text("Remove from Favorites") },
+                    text = { Text("Are you sure you want to remove this movie from your favorites?") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                StorageUtils.removeFavorite(context, movieId, "movie")
+                                isFavorite = false
+                                showRemoveFavoriteDialog = false
+                                // Show toast
+                                android.widget.Toast.makeText(context, "Removed from favorites", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        ) {
+                            Text("Remove")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { showRemoveFavoriteDialog = false }
+                        ) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
+            
             IconButton(
                 onClick = {
                     if (isFavorite) {
-                        StorageUtils.removeFavorite(context, movieId, "movie")
-                        isFavorite = false
-                        // Show toast
-                        android.widget.Toast.makeText(context, "Removed from favorites", android.widget.Toast.LENGTH_SHORT).show()
+                        // Show confirmation dialog instead of directly removing
+                        showRemoveFavoriteDialog = true
                     } else {
                         // Convert movie to favorite item with sources
                         val favoriteItem = FavoriteItem(
