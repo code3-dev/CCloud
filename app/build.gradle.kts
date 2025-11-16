@@ -51,32 +51,51 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            // Move keystoreProperties declaration to correct scope
+            val keystorePropertiesFile = rootProject.file("key.properties")
+            val keystoreProperties = Properties()
+            if (keystorePropertiesFile.exists()) {
+                keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+            }
+            val storeFilePath = keystoreProperties.getProperty("storeFile") ?: "keystore/debug.keystore"
+            signingConfig = if (file(storeFilePath).exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
+        
+        debug {
+            isDebuggable = true
+        }
     }
+    
     splits {
         abi {
             isEnable = true
             isUniversalApk = true
         }
     }
+    
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    
     kotlinOptions {
         jvmTarget = "11"
     }
+    
     buildFeatures {
         compose = true
     }
     
     // Add compatibility configurations for older Android versions
-    packagingOptions {
+    packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }

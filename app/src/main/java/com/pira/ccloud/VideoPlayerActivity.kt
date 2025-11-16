@@ -27,6 +27,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,9 +37,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.Forward
 import androidx.compose.material.icons.filled.Pause
@@ -46,6 +51,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -53,6 +59,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -71,7 +80,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
+import androidx.media3.common.TrackGroup
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
@@ -310,6 +324,11 @@ fun VideoPlayerScreen(
     var showSpeedDropdown by remember { mutableStateOf(false) }
     var playerInitialized by remember { mutableStateOf(false) }
     
+    // Track selection state
+    var showTrackSelectionDialog by remember { mutableStateOf(false) }
+    var currentTracks by remember { mutableStateOf(Tracks.EMPTY) }
+    var trackSelector by remember { mutableStateOf<DefaultTrackSelector?>(null) }
+    
     // Predefined playback speed options
     val speedOptions = remember {
         listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f, 3.5f)
@@ -363,26 +382,61 @@ fun VideoPlayerScreen(
     
     val exoPlayer = remember(context) {
         try {
-            ExoPlayer.Builder(context).build().apply {
-                try {
-                    setMediaItem(MediaItem.fromUri(Uri.parse(videoUrl)))
-                    prepare()
-                    // If we're retrying, seek to the current position
-                    if (isRetrying && currentPosition > 0) {
-                        seekTo(currentPosition)
+            // Create track selector for track selection
+            val selector = DefaultTrackSelector(context)
+            trackSelector = selector
+            
+            ExoPlayer.Builder(context)
+                .setTrackSelector(selector)
+                .build().apply {
+                    try {
+                        setMediaItem(MediaItem.fromUri(Uri.parse(videoUrl)))
+                        prepare()
+                        // If we're retrying, seek to the current position
+                        if (isRetrying && currentPosition > 0) {
+                            seekTo(currentPosition)
+                        }
+                        playWhenReady = true // Start playing by default
+                        // Set initial playback speed
+                        setPlaybackSpeed(playbackSpeed)
+                    } catch (e: Exception) {
+                        // Don't show error, just mark as retrying
+                        isRetrying = true
                     }
-                    playWhenReady = true // Start playing by default
-                    // Set initial playback speed
-                    setPlaybackSpeed(playbackSpeed)
-                } catch (e: Exception) {
-                    // Don't show error, just mark as retrying
-                    isRetrying = true
                 }
-            }
         } catch (e: Exception) {
             // Don't show error, just mark as retrying
             isRetrying = true
             null
+        }
+    }
+    
+    // Listen to track changes
+    val trackListener = remember(exoPlayer) {
+        object : Player.Listener {
+            override fun onTracksChanged(tracks: Tracks) {
+                currentTracks = tracks
+            }
+        }
+    }
+    
+    LaunchedEffect(exoPlayer) {
+        if (exoPlayer == null) return@LaunchedEffect
+        
+        try {
+            exoPlayer.addListener(trackListener)
+        } catch (e: Exception) {
+            // Ignore listener errors
+        }
+    }
+    
+    DisposableEffect(exoPlayer) {
+        onDispose {
+            try {
+                exoPlayer?.removeListener(trackListener)
+            } catch (e: Exception) {
+                // Ignore listener removal errors
+            }
         }
     }
     
@@ -767,7 +821,7 @@ fun VideoPlayerScreen(
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.5f))
             ) {
-                // Top bar with back button
+                // Top bar with back button and settings
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -785,6 +839,24 @@ fun VideoPlayerScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
+                    
+                    // Settings button in top right corner
+                    IconButton(
+                        onClick = { showTrackSelectionDialog = true },
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(
+                                color = Color.Black.copy(alpha = 0.7f),
+                                shape = androidx.compose.foundation.shape.CircleShape
+                            )
+                            .align(Alignment.TopEnd)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
                             tint = Color.White
                         )
                     }
@@ -989,7 +1061,275 @@ fun VideoPlayerScreen(
                 }
             }
         }
+        
+        // Track selection dialog
+        if (showTrackSelectionDialog) {
+            TrackSelectionDialog(
+                tracks = currentTracks,
+                trackSelector = trackSelector,
+                onDismiss = { showTrackSelectionDialog = false }
+            )
+        }
     }
+}
+
+@Composable
+fun TrackSelectionDialog(
+    tracks: Tracks,
+    trackSelector: DefaultTrackSelector?,
+    onDismiss: () -> Unit
+) {
+    val audioTrackGroups = remember(tracks) {
+        tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+    }
+    
+    val textTrackGroups = remember(tracks) {
+        tracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }
+    }
+    
+    // State for dropdown menus
+    var showAudioDropdown by remember { mutableStateOf(false) }
+    var showSubtitleDropdown by remember { mutableStateOf(false) }
+    
+    // Current selections
+    val currentAudioSelection = remember(audioTrackGroups) {
+        audioTrackGroups.firstOrNull { it.isSelected }?.let { group ->
+            (0 until group.length).firstOrNull { group.isTrackSelected(it) }?.let { index ->
+                val format = group.getTrackFormat(index)
+                format.language?.let { 
+                    if (it.isNotEmpty()) it else format.label ?: "Track $index"
+                } ?: format.label ?: "Track $index"
+            }
+        } ?: "None"
+    }
+    
+    val currentSubtitleSelection = remember(textTrackGroups) {
+        textTrackGroups.firstOrNull { it.isSelected }?.let { group ->
+            (0 until group.length).firstOrNull { group.isTrackSelected(it) }?.let { index ->
+                val format = group.getTrackFormat(index)
+                format.language?.let { 
+                    if (it.isNotEmpty()) it else format.label ?: "Subtitle $index"
+                } ?: format.label ?: "Subtitle $index"
+            }
+        } ?: "None"
+    }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Track Selection",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // Audio track selection
+                if (audioTrackGroups.isNotEmpty()) {
+                    Text(
+                        text = "Audio Tracks",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    // Audio dropdown
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showAudioDropdown = true }
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = currentAudioSelection,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Expand audio tracks",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        
+                        DropdownMenu(
+                            expanded = showAudioDropdown,
+                            onDismissRequest = { showAudioDropdown = false },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // None option
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "None",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                onClick = {
+                                    trackSelector?.setParameters(
+                                        trackSelector.buildUponParameters()
+                                            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
+                                    )
+                                    showAudioDropdown = false
+                                }
+                            )
+                            
+                            // Audio track options
+                            audioTrackGroups.forEachIndexed { groupIndex, trackGroup ->
+                                for (i in 0 until trackGroup.length) {
+                                    val format = trackGroup.getTrackFormat(i)
+                                    val trackName = format.language?.let { 
+                                        if (it.isNotEmpty()) it else format.label ?: "Track ${groupIndex + 1}.${i + 1}"
+                                    } ?: format.label ?: "Track ${groupIndex + 1}.${i + 1}"
+                                    
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = trackName,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        },
+                                        onClick = {
+                                            trackSelector?.setParameters(
+                                                trackSelector.buildUponParameters()
+                                                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                                                    .setOverrideForType(
+                                                        TrackSelectionOverride(trackGroup.mediaTrackGroup, i)
+                                                    )
+                                            )
+                                            showAudioDropdown = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Subtitle track selection
+                if (textTrackGroups.isNotEmpty()) {
+                    Text(
+                        text = "Subtitles",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    // Subtitle dropdown
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showSubtitleDropdown = true }
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = currentSubtitleSelection,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Expand subtitle tracks",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        
+                        DropdownMenu(
+                            expanded = showSubtitleDropdown,
+                            onDismissRequest = { showSubtitleDropdown = false },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // None option
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "None",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                onClick = {
+                                    trackSelector?.setParameters(
+                                        trackSelector.buildUponParameters()
+                                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                                    )
+                                    showSubtitleDropdown = false
+                                }
+                            )
+                            
+                            // Subtitle track options
+                            textTrackGroups.forEachIndexed { groupIndex, trackGroup ->
+                                for (i in 0 until trackGroup.length) {
+                                    val format = trackGroup.getTrackFormat(i)
+                                    val trackName = format.language?.let { 
+                                        if (it.isNotEmpty()) it else format.label ?: "Subtitle ${groupIndex + 1}.${i + 1}"
+                                    } ?: format.label ?: "Subtitle ${groupIndex + 1}.${i + 1}"
+                                    
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = trackName,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        },
+                                        onClick = {
+                                            trackSelector?.setParameters(
+                                                trackSelector.buildUponParameters()
+                                                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                                    .setOverrideForType(
+                                                        TrackSelectionOverride(trackGroup.mediaTrackGroup, i)
+                                                    )
+                                            )
+                                            showSubtitleDropdown = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "No subtitles available",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close", color = MaterialTheme.colorScheme.primary)
+            }
+        }
+    )
 }
 
 fun formatTime(milliseconds: Long): String {

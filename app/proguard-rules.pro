@@ -5,20 +5,12 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Preserve line number information for debugging stack traces.
+-keepattributes SourceFile,LineNumberTable
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Obfuscate class names
+-repackageclasses ''
+-allowaccessmodification
 
 # ExoPlayer specific rules
 -keep class androidx.media3.** { *; }
@@ -26,3 +18,27 @@
 
 # Kotlin serialization
 -keep class com.pira.ccloud.data.model.** { *; }
+
+# OkHttp and networking
+-keep class okhttp3.** { *; }
+-keep class okio.** { *; }
+-dontwarn javax.annotation.**
+-dontwarn okhttp3.**
+
+# Kotlin specific
+-dontwarn kotlin.**
+-keepclassmembers class **$WhenMappings {
+    <fields>;
+}
+
+# Compose specific rules
+-keep class androidx.compose.ui.** {*;}
+-dontwarn androidx.compose.ui.**
+-keep class androidx.compose.foundation.** {*;}
+-dontwarn androidx.compose.foundation.**
+-keep class androidx.compose.material.** {*;}
+-dontwarn androidx.compose.material.**
+
+# ViewModel and Lifecycle
+-keep class androidx.lifecycle.** {*;}
+-dontwarn androidx.lifecycle.**
