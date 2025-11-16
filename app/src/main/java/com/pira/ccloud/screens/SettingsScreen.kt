@@ -168,6 +168,9 @@ fun SettingsScreen(
         // Reset video player settings to default as well
         val defaultVideoPlayerSettings = VideoPlayerSettings.DEFAULT
         updateVideoPlayerSettings(defaultVideoPlayerSettings)
+        // Reset font settings to default as well
+        val defaultFontSettings = FontSettings.DEFAULT
+        updateFontSettings(defaultFontSettings)
     }
     
     // Compare version strings
