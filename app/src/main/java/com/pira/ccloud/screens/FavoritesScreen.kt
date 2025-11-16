@@ -1,7 +1,17 @@
 package com.pira.ccloud.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -47,6 +57,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -74,6 +91,11 @@ fun FavoritesScreen(navController: NavController) {
     var showCreateGroupDialog by remember { mutableStateOf(false) }
     var showMoveToGroupDialog by remember { mutableStateOf(false) }
     var selectedItem by remember { mutableStateOf<FavoriteItem?>(null) }
+    
+    // Focus requesters for handling TV remote navigation
+    val focusRequester = remember { FocusRequester() }
+    val groupCardFocusRequester = remember { FocusRequester() }
+    val favoritesCardFocusRequester = remember { FocusRequester() }
     
     // Load favorites and groups when screen is displayed
     LaunchedEffect(Unit) {
@@ -469,229 +491,315 @@ fun FavoritesScreen(navController: NavController) {
         modifier = Modifier.fillMaxSize()
     ) {
         // Top App Bar
-        TopAppBar(
-            title = {
+        AnimatedVisibility(
+            visible = true,
+            enter = fadeIn(animationSpec = tween(300)) + slideInVertically(animationSpec = tween(300)),
+            exit = fadeOut(animationSpec = tween(300)) + slideOutVertically(animationSpec = tween(300))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
                     text = selectedGroup?.name ?: stringResource(R.string.favorites),
-                    style = MaterialTheme.typography.headlineMedium
+                    style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.weight(1f)
                 )
-            },
-            actions = {
+                
                 // Create group button
                 IconButton(
-                    onClick = { showCreateGroupDialog = true }
+                    onClick = { showCreateGroupDialog = true },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .focusable()
+                        .focusRequester(remember { FocusRequester() })
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = "Create Playlist"
+                        contentDescription = "Create Playlist",
+                        tint = MaterialTheme.colorScheme.primary
                     )
                 }
                 
                 // Delete all button (only show if there are favorites)
                 if (favorites.isNotEmpty()) {
                     IconButton(
-                        onClick = { showDeleteAllDialog = true }
+                        onClick = { showDeleteAllDialog = true },
+                        modifier = Modifier
+                            .size(48.dp)
+                            .focusable()
+                            .focusRequester(remember { FocusRequester() })
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete All"
-                        )
+                            contentDescription = "Delete All",
+                            tint = MaterialTheme.colorScheme.primary
+                    )
                     }
                 }
             }
-        )
+        }
         
         // Group selector
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+        AnimatedVisibility(
+            visible = true,
+            enter = fadeIn(animationSpec = tween(400)) + slideInVertically(animationSpec = tween(400, delayMillis = 100)),
+            exit = fadeOut(animationSpec = tween(400)) + slideOutVertically(animationSpec = tween(400))
         ) {
-            Text(
-                text = "Playlists:",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold
-            )
-            
-            Spacer(modifier = Modifier.width(8.dp))
-            
-            // Display groups as selectable chips
-            androidx.compose.foundation.lazy.LazyRow(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .focusable()
+                    .focusRequester(groupCardFocusRequester)
+                    .focusProperties {
+                        down = favoritesCardFocusRequester
+                    },
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
-                items(groups) { group ->
-                    Box {
-                        var showGroupMenu by remember { mutableStateOf(false) }
-                        
-                        Card(
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Favorite,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = "Playlists",
+                            style = MaterialTheme.typography.titleLarge,
                             modifier = Modifier
-                                .padding(vertical = 4.dp)
-                                .clickable {
-                                    selectedGroup = group
-                                    // Load favorites for this group
-                                    favorites = if (group.isDefault) {
-                                        StorageUtils.loadAllFavorites(context)
-                                    } else {
-                                        StorageUtils.getFavoritesInGroup(context, group.id)
-                                    }
-                                },
-                            shape = RoundedCornerShape(16.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = if (selectedGroup?.id == group.id) 4.dp else 0.dp),
-                            colors = if (selectedGroup?.id == group.id) {
-                                CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                            } else {
-                                CardDefaults.cardColors()
-                            }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(text = group.name)
+                                .padding(start = 8.dp)
+                                .weight(1f)
+                        )
+                    }
+                    
+                    // Display groups as selectable chips
+                    androidx.compose.foundation.lazy.LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(groups) { group ->
+                            Box {
+                                var showGroupMenu by remember { mutableStateOf(false) }
                                 
-                                // Show menu icon for non-default groups
-                                if (!group.isDefault) {
-                                    IconButton(
-                                        onClick = { showGroupMenu = true },
-                                        modifier = Modifier.size(24.dp)
+                                Card(
+                                    modifier = Modifier
+                                        .padding(vertical = 4.dp)
+                                        .clickable {
+                                            selectedGroup = group
+                                            // Load favorites for this group
+                                            favorites = if (group.isDefault) {
+                                                StorageUtils.loadAllFavorites(context)
+                                            } else {
+                                                StorageUtils.getFavoritesInGroup(context, group.id)
+                                            }
+                                        }
+                                        .focusable()
+                                        .onKeyEvent { keyEvent ->
+                                            when (keyEvent.key) {
+                                                Key.Enter, Key.Spacebar -> {
+                                                    selectedGroup = group
+                                                    // Load favorites for this group
+                                                    favorites = if (group.isDefault) {
+                                                        StorageUtils.loadAllFavorites(context)
+                                                    } else {
+                                                        StorageUtils.getFavoritesInGroup(context, group.id)
+                                                    }
+                                                    true // Handled
+                                                }
+                                                else -> false // Let default handling occur
+                                            }
+                                        },
+                                    shape = RoundedCornerShape(16.dp),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = if (selectedGroup?.id == group.id) 4.dp else 0.dp),
+                                    colors = if (selectedGroup?.id == group.id) {
+                                        CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                                    } else {
+                                        CardDefaults.cardColors()
+                                    }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.MoreVert,
-                                            contentDescription = "Group options",
-                                            modifier = Modifier.size(16.dp)
-                                        )
+                                        Text(text = group.name)
+                                        
+                                        // Show menu icon for non-default groups
+                                        if (!group.isDefault) {
+                                            IconButton(
+                                                onClick = { showGroupMenu = true },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.MoreVert,
+                                                    contentDescription = "Group options",
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
+                                
+                                // Group menu for rename/delete options
+                                DropdownMenu(
+                                    expanded = showGroupMenu,
+                                    onDismissRequest = { showGroupMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Rename") },
+                                        onClick = {
+                                            // Implementation for rename
+                                            showGroupMenu = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete") },
+                                        onClick = {
+                                            // Implementation for delete
+                                            showGroupMenu = false
+                                        }
+                                    )
+                                }
                             }
-                        }
-                        
-                        // Group menu for rename/delete options
-                        DropdownMenu(
-                            expanded = showGroupMenu,
-                            onDismissRequest = { showGroupMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Rename") },
-                                onClick = {
-                                    groupToRename = group
-                                    newGroupName = group.name
-                                    showRenameGroupDialog = true
-                                    showGroupMenu = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Delete") },
-                                onClick = {
-                                    groupToDelete = group
-                                    showDeleteGroupDialog = true
-                                    showGroupMenu = false
-                                }
-                            )
                         }
                     }
                 }
             }
         }
         
+        Spacer(modifier = Modifier.height(8.dp))
+        
         // Content
-        if (favorites.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
+        AnimatedVisibility(
+            visible = true,
+            enter = fadeIn(animationSpec = tween(500)) + slideInVertically(animationSpec = tween(500, delayMillis = 200)),
+            exit = fadeOut(animationSpec = tween(500)) + slideOutVertically(animationSpec = tween(500))
+        ) {
+            if (favorites.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Favorite,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .padding(bottom = 16.dp)
-                    )
-                    Text(text = "No favorites yet")
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Favorite,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .padding(bottom = 16.dp)
+                        )
+                        Text(text = "No favorites yet")
+                    }
                 }
-            }
-        } else {
-            // State variables for the confirmation dialog
-            var showRemoveFavoriteDialog by remember { mutableStateOf(false) }
-            var favoriteToRemove by remember { mutableStateOf<FavoriteItem?>(null) }
-            
-            // Confirmation dialog for removing from favorites
-            if (showRemoveFavoriteDialog && favoriteToRemove != null) {
-                AlertDialog(
-                    onDismissRequest = { showRemoveFavoriteDialog = false },
-                    title = { Text("Remove from Favorites") },
-                    text = { Text("Are you sure you want to remove \"${favoriteToRemove!!.title}\" from your favorites?") },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                StorageUtils.removeFavorite(context, favoriteToRemove!!.id, favoriteToRemove!!.type)
-                                // Refresh the favorites list
-                                favorites = if (selectedGroup != null && !selectedGroup!!.isDefault) {
-                                    StorageUtils.getFavoritesInGroup(context, selectedGroup!!.id)
-                                } else {
-                                    StorageUtils.loadAllFavorites(context)
+            } else {
+                // State variables for the confirmation dialog
+                var showRemoveFavoriteDialog by remember { mutableStateOf(false) }
+                var favoriteToRemove by remember { mutableStateOf<FavoriteItem?>(null) }
+                
+                // Confirmation dialog for removing from favorites
+                if (showRemoveFavoriteDialog && favoriteToRemove != null) {
+                    AlertDialog(
+                        onDismissRequest = { showRemoveFavoriteDialog = false },
+                        title = { Text("Remove from Favorites") },
+                        text = { Text("Are you sure you want to remove \"${favoriteToRemove!!.title}\" from your favorites?") },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    StorageUtils.removeFavorite(context, favoriteToRemove!!.id, favoriteToRemove!!.type)
+                                    // Refresh the favorites list
+                                    favorites = if (selectedGroup != null && !selectedGroup!!.isDefault) {
+                                        StorageUtils.getFavoritesInGroup(context, selectedGroup!!.id)
+                                    } else {
+                                        StorageUtils.loadAllFavorites(context)
+                                    }
+                                    showRemoveFavoriteDialog = false
+                                    favoriteToRemove = null
+                                    // Show toast
+                                    android.widget.Toast.makeText(context, "Removed from favorites", android.widget.Toast.LENGTH_SHORT).show()
                                 }
-                                showRemoveFavoriteDialog = false
-                                favoriteToRemove = null
-                                // Show toast
-                                android.widget.Toast.makeText(context, "Removed from favorites", android.widget.Toast.LENGTH_SHORT).show()
+                            ) {
+                                Text("Remove")
                             }
-                        ) {
-                            Text("Remove")
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = { 
+                                    showRemoveFavoriteDialog = false
+                                    favoriteToRemove = null
+                                }
+                            ) {
+                                Text("Cancel")
+                            }
                         }
-                    },
-                    dismissButton = {
-                        TextButton(
-                            onClick = { 
-                                showRemoveFavoriteDialog = false
-                                favoriteToRemove = null
-                            }
+                    )
+                }
+                
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .weight(1f)
+                        .focusable()
+                        .focusRequester(favoritesCardFocusRequester)
+                        .focusProperties {
+                            up = groupCardFocusRequester
+                        },
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "Favorites",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(0.dp),
+                            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
                         ) {
-                            Text("Cancel")
+                            items(favorites) { favorite ->
+                                FavoriteItemCard(
+                                    favorite = favorite,
+                                    onClick = {
+                                        // Save the favorite to the appropriate database before navigating
+                                        StorageUtils.saveFavoriteToDatabase(context, favorite)
+                                        
+                                        // Navigate to the appropriate screen based on type
+                                        when (favorite.type) {
+                                            "movie" -> {
+                                                navController.navigate("${AppScreens.SingleMovie.route.replace("{movieId}", favorite.id.toString())}")
+                                            }
+                                            "series" -> {
+                                                navController.navigate("${AppScreens.SingleSeries.route.replace("{seriesId}", favorite.id.toString())}")
+                                            }
+                                        }
+                                    },
+                                    onDelete = {
+                                        favoriteToRemove = favorite
+                                        showRemoveFavoriteDialog = true
+                                    },
+                                    onMoveToGroup = { item ->
+                                        selectedItem = item
+                                        showMoveToGroupDialog = true
+                                    }
+                                )
+                            }
                         }
                     }
-                )
-            }
-            
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
-            ) {
-                items(favorites) { favorite ->
-                    FavoriteItemCard(
-                        favorite = favorite,
-                        onClick = {
-                            // Save the favorite to the appropriate database before navigating
-                            StorageUtils.saveFavoriteToDatabase(context, favorite)
-                            
-                            // Navigate to the appropriate screen based on type
-                            when (favorite.type) {
-                                "movie" -> {
-                                    navController.navigate("${AppScreens.SingleMovie.route.replace("{movieId}", favorite.id.toString())}")
-                                }
-                                "series" -> {
-                                    navController.navigate("${AppScreens.SingleSeries.route.replace("{seriesId}", favorite.id.toString())}")
-                                }
-                            }
-                        },
-                        onDelete = {
-                            favoriteToRemove = favorite
-                            showRemoveFavoriteDialog = true
-                        },
-                        onMoveToGroup = { item ->
-                            selectedItem = item
-                            showMoveToGroupDialog = true
-                        }
-                    )
                 }
             }
         }
@@ -706,11 +814,23 @@ fun FavoriteItemCard(
     onMoveToGroup: (FavoriteItem) -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
     
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
+            .clickable { onClick() }
+            .focusable()
+            .focusRequester(focusRequester)
+            .onKeyEvent { keyEvent ->
+                when (keyEvent.key) {
+                    Key.Enter, Key.Spacebar -> {
+                        onClick()
+                        true // Handled
+                    }
+                    else -> false // Let default handling occur
+                }
+            },
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -774,7 +894,8 @@ fun FavoriteItemCard(
             // Menu button for additional actions
             Box {
                 IconButton(
-                    onClick = { showMenu = true }
+                    onClick = { showMenu = true },
+                    modifier = Modifier.focusable()
                 ) {
                     Icon(
                         imageVector = Icons.Default.MoreVert,
