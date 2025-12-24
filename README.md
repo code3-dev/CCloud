@@ -40,12 +40,6 @@ CCloud is a modern Android streaming application built with Jetpack Compose and 
 
 <div align="center">
 
-### 🔰 Architecture-Specific Builds
-
-[![ARM64-v8a](https://img.shields.io/badge/⬇️%20Download-ARM64--v8a-brightgreen?style=for-the-badge&logo=android)](https://github.com/code3-dev/CCloud/releases/latest/download/CCloud-arm64-v8a.apk)
-
-[![ARMEABI-v7a](https://img.shields.io/badge/⬇️%20Download-ARMEABI--v7a-blue?style=for-the-badge&logo=android)](https://github.com/code3-dev/CCloud/releases/latest/download/CCloud-armeabi-v7a.apk)
-
 [![Universal](https://img.shields.io/badge/⬇️%20Download-Universal-purple?style=for-the-badge&logo=android)](https://github.com/code3-dev/CCloud/releases/latest/download/CCloud-universal.apk)
 
 </div>
@@ -113,9 +107,9 @@ The app follows a clean architecture pattern with the following components:
 
 ## 📱 Supported Android Versions
 
-CCloud supports Android 7.0 (API level 24) and higher. The app is optimized for:
+CCloud supports Android 8.0 (API level 24) and higher. The app is optimized for:
 
-- **Android 7.0 - 16** (API levels 24-36)
+- **Android 8.0 - 16** (API levels 24-36)
 - **Android TV** devices
 - **Tablets** and large-screen devices
 

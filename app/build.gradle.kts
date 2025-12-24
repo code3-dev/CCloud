@@ -14,12 +14,12 @@ android {
 
     defaultConfig {
         applicationId = "com.pira.ccloud"
-        // Supported Android versions: Android 7.0 (API 24) and higher
-        // Android 6.0 (API 23) and earlier are not supported
+        // Supported Android versions: Android 8.0 (API 24) and higher
+        // Android 7.0 (API 23) and earlier are not supported
         minSdk = 24
         targetSdk = 36
-        versionCode = 18
-        versionName = "1.1.7"
+        versionCode = 19
+        versionName = "1.1.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         

@@ -87,8 +87,6 @@ jobs:
         run: |
           mkdir -p release
           cp app/build/outputs/apk/release/app-universal-release.apk release/CCloud-universal.apk
-          cp app/build/outputs/apk/release/app-arm64-v8a-release.apk release/CCloud-arm64-v8a.apk
-          cp app/build/outputs/apk/release/app-armeabi-v7a-release.apk release/CCloud-armeabi-v7a.apk
 
       - name: Get tag name
         id: get_tag
@@ -111,8 +109,6 @@ jobs:
           prerelease: false
           files: |
             release/CCloud-universal.apk
-            release/CCloud-arm64-v8a.apk
-            release/CCloud-armeabi-v7a.apk
           body: |
             ## CCloud Release ${{ env.TAG_NAME }}
             
@@ -122,15 +118,10 @@ jobs:
             - New features and bug fixes
             
             ### Download Options
-            - [Universal APK (all architectures)](https://github.com/${{ github.repository }}/releases/download/${{ env.TAG_NAME }}/CCloud-universal.apk) - Larger file size, compatible with all devices
-            - [ARM64-v8a APK](https://github.com/${{ github.repository }}/releases/download/${{ env.TAG_NAME }}/CCloud-arm64-v8a.apk) - Optimized for 64-bit ARM devices
-            - [ARMv7a APK](https://github.com/${{ github.repository }}/releases/download/${{ env.TAG_NAME }}/CCloud-armeabi-v7a.apk) - Optimized for 32-bit ARM devices
-            
+            - [Universal APK (all architectures)](https://github.com/${{ github.repository }}/releases/download/${{ env.TAG_NAME }}/CCloud-universal.apk) - Compatible with all devices
+
             ### Installation
             1. Download the appropriate APK file for your device
             2. Enable "Install from unknown sources" in your device settings
             3. Open and install the APK
             4. Launch CCloud and enjoy your movies!
-            
-            ### Changelog
-            For a detailed changelog, please check the [commit history](https://github.com/${{ github.repository }}/commits/${{ env.TAG_NAME }}).
