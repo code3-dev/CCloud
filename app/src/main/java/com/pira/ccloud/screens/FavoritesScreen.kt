@@ -656,14 +656,17 @@ fun FavoritesScreen(navController: NavController) {
                                     DropdownMenuItem(
                                         text = { Text("Rename") },
                                         onClick = {
-                                            // Implementation for rename
+                                            groupToRename = group
+                                            newGroupName = group.name
+                                            showRenameGroupDialog = true
                                             showGroupMenu = false
                                         }
                                     )
                                     DropdownMenuItem(
                                         text = { Text("Delete") },
                                         onClick = {
-                                            // Implementation for delete
+                                            groupToDelete = group
+                                            showDeleteGroupDialog = true
                                             showGroupMenu = false
                                         }
                                     )

@@ -376,6 +376,8 @@ fun SeriesDetailsContent(
     val context = LocalContext.current
     val layoutDirection = LocalLayoutDirection.current
     var selectedSeasonIndex by remember { mutableStateOf(0) }
+    var showEpisodeImageDialog by remember { mutableStateOf(false) }
+    var episodeImageUrl by remember { mutableStateOf("") }
     
     LazyColumn(
         modifier = modifier
@@ -425,6 +427,8 @@ fun SeriesDetailsContent(
                     verticalAlignment = Alignment.Bottom
                 ) {
                     // Foreground series poster
+                    var showImageDialog by remember { mutableStateOf(false) }
+                    
                     Image(
                         painter = rememberAsyncImagePainter(
                             ImageRequest.Builder(LocalContext.current)
@@ -435,9 +439,36 @@ fun SeriesDetailsContent(
                         contentDescription = series.title,
                         modifier = Modifier
                             .height(200.dp)
-                            .clip(RoundedCornerShape(8.dp)),
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { showImageDialog = true },
                         contentScale = ContentScale.Fit
                     )
+                    
+                    // Image URL dialog
+                    if (showImageDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showImageDialog = false },
+                            title = { Text("Image Options") },
+                            text = { Text("Choose an action for this image") },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        DownloadUtils.copyToClipboard(context, series.image)
+                                        showImageDialog = false
+                                    }
+                                ) {
+                                    Text("Copy Image URL")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    onClick = { showImageDialog = false }
+                                ) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
+                    }
                     
                     // Series details to the right of the poster
                     Column(
@@ -633,13 +664,20 @@ fun SeriesDetailsContent(
         
         item {
             // Description
-            Text(
-                text = "Description",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, top = 16.dp, end = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Description",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
         
         item {
@@ -753,7 +791,11 @@ fun SeriesDetailsContent(
                         EpisodeItem(
                             episode = episode,
                             onPlayClick = { onEpisodeClick(episode) },
-                            onDownloadClick = { onDownloadClick(episode) }
+                            onDownloadClick = { onDownloadClick(episode) },
+                            onImageClick = { imageUrl ->
+                                episodeImageUrl = imageUrl
+                                showEpisodeImageDialog = true
+                            }
                         )
                     }
                 }
@@ -777,7 +819,8 @@ fun SeriesDetailsContent(
 fun EpisodeItem(
     episode: Episode,
     onPlayClick: () -> Unit,
-    onDownloadClick: () -> Unit
+    onDownloadClick: () -> Unit,
+    onImageClick: (String) -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -811,7 +854,8 @@ fun EpisodeItem(
                         contentDescription = episode.title,
                         modifier = Modifier
                             .size(60.dp)
-                            .clip(RoundedCornerShape(8.dp)),
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onImageClick(episode.image) },
                         contentScale = ContentScale.Crop
                     )
                     

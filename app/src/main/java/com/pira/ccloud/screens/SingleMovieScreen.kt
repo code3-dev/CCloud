@@ -199,6 +199,8 @@ fun MovieDetailsContent(
                 verticalAlignment = Alignment.Bottom
             ) {
                 // Foreground movie poster
+                var showImageDialog by remember { mutableStateOf(false) }
+                
                 Image(
                     painter = rememberAsyncImagePainter(
                         ImageRequest.Builder(LocalContext.current)
@@ -209,9 +211,36 @@ fun MovieDetailsContent(
                     contentDescription = movie.title,
                     modifier = Modifier
                         .height(200.dp)
-                        .clip(RoundedCornerShape(8.dp)),
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { showImageDialog = true },
                     contentScale = ContentScale.Fit
                 )
+                
+                // Image URL dialog
+                if (showImageDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showImageDialog = false },
+                        title = { Text("Image Options") },
+                        text = { Text("Choose an action for this image") },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    DownloadUtils.copyToClipboard(context, movie.image)
+                                    showImageDialog = false
+                                }
+                            ) {
+                                Text("Copy Image URL")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = { showImageDialog = false }
+                            ) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
+                }
                 
                 // Movie details to the right of the poster
                 Column(
@@ -404,13 +433,20 @@ fun MovieDetailsContent(
         }
         
         // Description
-        Text(
-            text = "Description",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp)
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, top = 16.dp, end = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Description",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
         
         // Set layout direction to RTL for the description text
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {

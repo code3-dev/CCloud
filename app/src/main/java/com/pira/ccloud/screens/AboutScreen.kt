@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -172,6 +173,43 @@ fun AboutScreen(navController: NavController?) {
             
             Spacer(modifier = Modifier.height(24.dp))
             
+            // Donation Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Support Us",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    
+                    Text(
+                        text = "If you find CCloud useful, consider supporting the development with a donation.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    
+                    // Tron Address (TRX)
+                    DonationItem(
+                        coinName = "Tron (TRX)",
+                        address = "TZDVavXKzfgpAX7NFVh8h2KY3XWCbNEyEe"
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    // Bitcoin Address (BTC)
+                    DonationItem(
+                        coinName = "Bitcoin (BTC)",
+                        address = "bc1q74l58mhmtwgk4ygr3l0zyv53fgxdajp28tvrld"
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
             // Copyright
             Text(
                 text = "© ${java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)} CCloud. All rights reserved.",
@@ -236,6 +274,53 @@ fun LinkItem(
             modifier = Modifier
                 .size(24.dp)
                 .graphicsLayer(rotationZ = 180f)
+        )
+    }
+}
+
+@Composable
+fun DonationItem(
+    coinName: String,
+    address: String
+) {
+    val context = LocalContext.current
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                // Copy address to clipboard
+                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                val clip = android.content.ClipData.newPlainText("$coinName Address", address)
+                clipboard.setPrimaryClip(clip)
+                
+                // Show toast
+                android.widget.Toast.makeText(context, "$coinName address copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = coinName,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(4.dp))
+            
+            Text(
+                text = address,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        
+        Icon(
+            imageVector = Icons.Default.ContentCopy,
+            contentDescription = "Copy address",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp)
         )
     }
 }

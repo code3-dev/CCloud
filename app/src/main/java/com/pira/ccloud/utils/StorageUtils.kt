@@ -497,4 +497,25 @@ object StorageUtils {
             FontSettings.DEFAULT
         }
     }
+    
+    // Welcome screen state functions
+    fun saveWelcomeCompleted(context: Context) {
+        try {
+            val file = File(context.filesDir, "welcome_completed.flag")
+            file.writeText("completed")
+            Log.d(TAG, "Welcome screen marked as completed")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving welcome completed state", e)
+        }
+    }
+    
+    fun isWelcomeCompleted(context: Context): Boolean {
+        return try {
+            val file = File(context.filesDir, "welcome_completed.flag")
+            file.exists()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking welcome completed state", e)
+            false
+        }
+    }
 }
