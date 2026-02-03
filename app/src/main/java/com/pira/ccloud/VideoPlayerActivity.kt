@@ -92,6 +92,7 @@ import androidx.media3.ui.PlayerView
 import com.pira.ccloud.data.model.SubtitleSettings
 import com.pira.ccloud.data.model.VideoPlayerSettings
 import com.pira.ccloud.data.model.FontSettings
+import com.pira.ccloud.data.model.WatchedEpisode
 import com.pira.ccloud.utils.StorageUtils
 import com.pira.ccloud.ui.theme.FontManager
 import kotlinx.coroutines.CoroutineScope
@@ -131,6 +132,9 @@ fun PlayerView.setSubtitleColors(settings: SubtitleSettings, typeface: Typeface?
 class VideoPlayerActivity : ComponentActivity() {
     companion object {
         const val EXTRA_VIDEO_URL = "video_url"
+        const val EXTRA_SERIES_ID = "series_id"
+        const val EXTRA_SEASON_ID = "season_id"
+        const val EXTRA_EPISODE_ID = "episode_id"
         const val REQUEST_WRITE_SETTINGS = 1001
         
         fun start(context: Context, videoUrl: String) {
@@ -139,12 +143,26 @@ class VideoPlayerActivity : ComponentActivity() {
             }
             context.startActivity(intent)
         }
+        
+        fun startWithEpisodeInfo(context: Context, videoUrl: String, seriesId: Int, seasonId: Int, episodeId: Int) {
+            val intent = Intent(context, VideoPlayerActivity::class.java).apply {
+                putExtra(EXTRA_VIDEO_URL, videoUrl)
+                putExtra(EXTRA_SERIES_ID, seriesId)
+                putExtra(EXTRA_SEASON_ID, seasonId)
+                putExtra(EXTRA_EPISODE_ID, episodeId)
+            }
+            context.startActivity(intent)
+        }
     }
     
     private var exoPlayer: ExoPlayer? = null
     private var videoUrl: String? = null
+    private var seriesId: Int? = null
+    private var seasonId: Int? = null
+    private var episodeId: Int? = null
     private var playerInitialized = false
     private var isActivityResumed = false
+    private var hasMarkedAsWatched = false
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -159,10 +177,19 @@ class VideoPlayerActivity : ComponentActivity() {
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         
         videoUrl = intent.getStringExtra(EXTRA_VIDEO_URL)
+        seriesId = intent.getIntExtra(EXTRA_SERIES_ID, -1).takeIf { it != -1 }
+        seasonId = intent.getIntExtra(EXTRA_SEASON_ID, -1).takeIf { it != -1 }
+        episodeId = intent.getIntExtra(EXTRA_EPISODE_ID, -1).takeIf { it != -1 }
         
         if (videoUrl != null) {
             setContent {
-                VideoPlayerScreen(videoUrl!!, this::finish) { player ->
+                VideoPlayerScreen(
+                    videoUrl = videoUrl!!, 
+                    seriesId = seriesId,
+                    seasonId = seasonId,
+                    episodeId = episodeId,
+                    onBack = this::finish
+                ) { player ->
                     exoPlayer = player
                     playerInitialized = true
                 }
@@ -306,6 +333,9 @@ class VideoPlayerActivity : ComponentActivity() {
 @Composable
 fun VideoPlayerScreen(
     videoUrl: String,
+    seriesId: Int?,
+    seasonId: Int?,
+    episodeId: Int?,
     onBack: () -> Unit,
     onPlayerReady: (ExoPlayer) -> Unit
 ) {
@@ -323,6 +353,7 @@ fun VideoPlayerScreen(
     var playbackSpeed by remember { mutableStateOf(1.0f) }
     var showSpeedDropdown by remember { mutableStateOf(false) }
     var playerInitialized by remember { mutableStateOf(false) }
+    var hasMarkedAsWatched by remember { mutableStateOf(false) }
     
     // Track selection state
     var showTrackSelectionDialog by remember { mutableStateOf(false) }
@@ -396,7 +427,7 @@ fun VideoPlayerScreen(
                         if (isRetrying && currentPosition > 0) {
                             seekTo(currentPosition)
                         }
-                        playWhenReady = true // Start playing by default
+                        playWhenReady = isPlaying // Start with current play state
                         // Set initial playback speed
                         setPlaybackSpeed(playbackSpeed)
                     } catch (e: Exception) {
@@ -450,10 +481,25 @@ fun VideoPlayerScreen(
         }
     }
     
-    // Update player state
+    // Update player state and mark episode as watched
     LaunchedEffect(isPlaying, exoPlayer) {
         try {
             exoPlayer?.playWhenReady = isPlaying
+            
+            // Mark episode as watched when playback starts (only once)
+            if (isPlaying && !hasMarkedAsWatched && seriesId != null && seasonId != null && episodeId != null) {
+                try {
+                    val watchedEpisode = WatchedEpisode(
+                        seriesId = seriesId!!,
+                        seasonId = seasonId!!,
+                        episodeId = episodeId!!
+                    )
+                    StorageUtils.saveWatchedEpisode(context, watchedEpisode)
+                    hasMarkedAsWatched = true
+                } catch (e: Exception) {
+                    // Ignore storage errors
+                }
+            }
         } catch (e: Exception) {
             // Ignore player state errors
         }
@@ -482,6 +528,15 @@ fun VideoPlayerScreen(
                 try {
                     if (playbackState == Player.STATE_READY) {
                         duration = exoPlayer?.duration ?: 0L
+                        
+                        // After the player is ready (especially after a retry), 
+                        // ensure the playWhenReady state is consistent with our UI state
+                        if (exoPlayer != null && !isRetrying) {
+                            exoPlayer?.playWhenReady = isPlaying
+                        }
+                    } else if (playbackState == Player.STATE_ENDED) {
+                        // Video ended, pause the player
+                        isPlaying = false
                     }
                 } catch (e: Exception) {
                     // Ignore duration errors
@@ -509,6 +564,7 @@ fun VideoPlayerScreen(
                 
                 // Store current position before retrying
                 val retryPosition = currentPosition
+                val wasPlaying = isPlaying // Store whether it was playing before the error
                 
                 // Attempt to retry after a delay
                 CoroutineScope(Dispatchers.Main).launch {
@@ -520,7 +576,12 @@ fun VideoPlayerScreen(
                             player.prepare()
                             // Seek to the stored position after preparing
                             player.seekTo(retryPosition)
-                            player.playWhenReady = true
+                            
+                            // Resume playback if it was playing before the error
+                            player.playWhenReady = wasPlaying
+                            
+                            // Update the UI state to match the player state
+                            isPlaying = wasPlaying
                             isRetrying = false
                             playerError = null
                         }
@@ -963,13 +1024,17 @@ fun VideoPlayerScreen(
                                         // Manual retry
                                         try {
                                             exoPlayer?.let { player ->
-                                                // Store current position before retrying
+                                                // Store current position and playback state before retrying
                                                 val retryPosition = currentPosition
+                                                val wasPlaying = isPlaying // Store whether it was playing before the retry
                                                 player.setMediaItem(MediaItem.fromUri(Uri.parse(videoUrl)))
                                                 player.prepare()
                                                 // Seek to the stored position after preparing
                                                 player.seekTo(retryPosition)
-                                                player.playWhenReady = true
+                                                // Resume playback if it was playing before the retry
+                                                player.playWhenReady = wasPlaying
+                                                // Update the UI state to match the player state
+                                                isPlaying = wasPlaying
                                                 isRetrying = false
                                                 playerError = null
                                             }

@@ -71,6 +71,8 @@ import com.pira.ccloud.data.model.Episode
 import com.pira.ccloud.data.model.Season
 import com.pira.ccloud.data.model.Series
 import com.pira.ccloud.data.model.Source
+import com.pira.ccloud.data.model.WatchedEpisode
+import androidx.compose.material.icons.filled.Check
 import com.pira.ccloud.ui.series.SeasonsViewModel
 import com.pira.ccloud.utils.DownloadUtils
 import com.pira.ccloud.utils.StorageUtils
@@ -88,6 +90,7 @@ fun SingleSeriesScreen(
     var showSourceDialog by remember { mutableStateOf(false) }
     var showDownloadMenu by remember { mutableStateOf(false) }
     var downloadSources by remember { mutableStateOf<List<Source>>(emptyList()) }
+    var selectedSeasonIndex by remember { mutableStateOf(0) }
     
     LaunchedEffect(seriesId) {
         series = StorageUtils.loadSeriesFromFile(context, seriesId)
@@ -95,9 +98,12 @@ fun SingleSeriesScreen(
     }
     
     // Source selection dialog
-    if (showSourceDialog && selectedEpisode != null) {
+    if (showSourceDialog && selectedEpisode != null && series != null) {
+        val selectedSeason = seasonsViewModel.seasons[selectedSeasonIndex]
         SourceOptionsDialog(
             episode = selectedEpisode!!,
+            series = series!!,
+            season = selectedSeason,
             onDismiss = { showSourceDialog = false },
             onDownload = { source ->
                 showSourceDialog = false
@@ -105,8 +111,14 @@ fun SingleSeriesScreen(
             },
             onPlay = { source ->
                 showSourceDialog = false
-                // Launch video player activity with the selected source URL
-                VideoPlayerActivity.start(context, source.url)
+                // Launch video player activity with the selected source URL and episode info
+                VideoPlayerActivity.startWithEpisodeInfo(
+                    context,
+                    source.url,
+                    series!!.id,
+                    selectedSeason.id,
+                    selectedEpisode!!.id
+                )
             }
         )
     }
@@ -130,14 +142,21 @@ fun SingleSeriesScreen(
             seasonsViewModel = seasonsViewModel,
             onBackClick = { navController.popBackStack() },
             onEpisodeClick = { episode ->
-                if (episode.sources.isNotEmpty()) {
+                if (episode.sources.isNotEmpty() && series != null) {
+                    val selectedSeason = seasonsViewModel.seasons[selectedSeasonIndex]
                     if (episode.sources.size > 1) {
                         // Show source selection dialog if there are multiple sources
                         selectedEpisode = episode
                         showSourceDialog = true
                     } else {
                         // Directly play if there's only one source
-                        VideoPlayerActivity.start(context, episode.sources[0].url)
+                        VideoPlayerActivity.startWithEpisodeInfo(
+                            context, 
+                            episode.sources[0].url,
+                            series!!.id,
+                            selectedSeason.id,
+                            episode.id
+                        )
                     }
                 }
             },
@@ -186,6 +205,8 @@ fun SingleSeriesScreen(
 @Composable
 fun SourceOptionsDialog(
     episode: Episode,
+    series: Series,
+    season: Season,
     onDismiss: () -> Unit,
     onDownload: (Source) -> Unit,
     onPlay: (Source) -> Unit
@@ -788,8 +809,10 @@ fun SeriesDetailsContent(
                     )
                     
                     selectedSeason.episodes.forEach { episode ->
+                        val isEpisodeWatched = StorageUtils.isEpisodeWatched(context, series.id, selectedSeason.id, episode.id)
                         EpisodeItem(
                             episode = episode,
+                            isWatched = isEpisodeWatched,
                             onPlayClick = { onEpisodeClick(episode) },
                             onDownloadClick = { onDownloadClick(episode) },
                             onImageClick = { imageUrl ->
@@ -818,6 +841,7 @@ fun SeriesDetailsContent(
 @Composable
 fun EpisodeItem(
     episode: Episode,
+    isWatched: Boolean,
     onPlayClick: () -> Unit,
     onDownloadClick: () -> Unit,
     onImageClick: (String) -> Unit
@@ -829,7 +853,10 @@ fun EpisodeItem(
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            containerColor = if (isWatched) 
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            else 
+                MaterialTheme.colorScheme.surfaceVariant,
         )
     ) {
         Column(
@@ -844,20 +871,43 @@ fun EpisodeItem(
             ) {
                 // Episode image
                 if (episode.image.isNotEmpty()) {
-                    Image(
-                        painter = rememberAsyncImagePainter(
-                            ImageRequest.Builder(LocalContext.current)
-                                .data(episode.image)
-                                .crossfade(true)
-                                .build()
-                        ),
-                        contentDescription = episode.title,
-                        modifier = Modifier
-                            .size(60.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onImageClick(episode.image) },
-                        contentScale = ContentScale.Crop
-                    )
+                    Box {
+                        Image(
+                            painter = rememberAsyncImagePainter(
+                                ImageRequest.Builder(LocalContext.current)
+                                    .data(episode.image)
+                                    .crossfade(true)
+                                    .build()
+                            ),
+                            contentDescription = episode.title,
+                            modifier = Modifier
+                                .size(60.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onImageClick(episode.image) },
+                            contentScale = ContentScale.Crop
+                        )
+                        
+                        // Watched indicator overlay
+                        if (isWatched) {
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .align(Alignment.TopEnd)
+                                    .background(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        shape = RoundedCornerShape(10.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Watched",
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+                    }
                     
                     Spacer(modifier = Modifier.width(12.dp))
                 }
@@ -879,6 +929,16 @@ fun EpisodeItem(
                             text = "${episode.sources.size} qualities available",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    
+                    // Watched status text
+                    if (isWatched) {
+                        Text(
+                            text = "Watched",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }

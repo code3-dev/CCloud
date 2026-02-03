@@ -73,6 +73,7 @@ import com.pira.ccloud.data.model.SubtitleSettings
 import com.pira.ccloud.data.model.VideoPlayerSettings
 import com.pira.ccloud.data.model.FontSettings
 import com.pira.ccloud.data.model.FontType
+import com.pira.ccloud.data.model.WatchedEpisode
 import com.pira.ccloud.ui.theme.ThemeMode
 import com.pira.ccloud.ui.theme.ThemeSettings
 import com.pira.ccloud.ui.theme.ThemeManager
@@ -118,8 +119,10 @@ fun SettingsScreen(
     var fontSettings by remember { mutableStateOf(StorageUtils.loadFontSettings(context)) }
     var showResetDialog by remember { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
+    var showClearWatchedEpisodesDialog by remember { mutableStateOf(false) }
     var latestVersionUrl by remember { mutableStateOf("") }
     var isCheckingUpdate by remember { mutableStateOf(false) }
+    var watchedEpisodesCacheSize by remember { mutableStateOf(0L) }
     
     // Focus requesters for handling TV remote navigation
     val focusRequester = remember { FocusRequester() }
@@ -131,6 +134,21 @@ fun SettingsScreen(
     
     // Configure JSON to ignore unknown keys
     val json = Json { ignoreUnknownKeys = true }
+    
+    // Load watched episodes cache size when screen is shown
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        watchedEpisodesCacheSize = try {
+            val file = java.io.File(context.filesDir, "watched_episodes.json")
+            if (file.exists()) {
+                file.length()
+            } else {
+                0L
+            }
+        } catch (e: Exception) {
+            Log.e("SettingsScreen", "Error calculating cache size", e)
+            0L
+        }
+    }
     
     // Update parent when settings change
     fun updateThemeSettings(newSettings: ThemeSettings) {
@@ -171,6 +189,33 @@ fun SettingsScreen(
         // Reset font settings to default as well
         val defaultFontSettings = FontSettings.DEFAULT
         updateFontSettings(defaultFontSettings)
+    }
+    
+    // Calculate watched episodes cache size
+    fun calculateWatchedEpisodesCacheSize(): Long {
+        return try {
+            val file = java.io.File(context.filesDir, "watched_episodes.json")
+            if (file.exists()) {
+                file.length()
+            } else {
+                0L
+            }
+        } catch (e: Exception) {
+            Log.e("SettingsScreen", "Error calculating cache size", e)
+            0L
+        }
+    }
+    
+    // Clear all watched episodes
+    fun clearWatchedEpisodes() {
+        try {
+            StorageUtils.clearAllWatchedEpisodes(context)
+            watchedEpisodesCacheSize = 0L
+            Toast.makeText(context, "Watched episodes cache cleared", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e("SettingsScreen", "Error clearing watched episodes", e)
+            Toast.makeText(context, "Error clearing cache", Toast.LENGTH_SHORT).show()
+        }
     }
     
     // Compare version strings
@@ -729,14 +774,77 @@ fun SettingsScreen(
             }
         }
         
-        // Favorites Card
+        // Episode Marks Cache Card
         item {
             val focusRequester = remember { FocusRequester() }
             
             AnimatedVisibility(
                 visible = true,
-                enter = fadeIn(animationSpec = tween(800)) + slideInVertically(animationSpec = tween(800, delayMillis = 500)),
-                exit = fadeOut(animationSpec = tween(800)) + slideOutVertically(animationSpec = tween(800))
+                enter = fadeIn(animationSpec = tween(900)) + slideInVertically(animationSpec = tween(900, delayMillis = 600)),
+                exit = fadeOut(animationSpec = tween(900)) + slideOutVertically(animationSpec = tween(900))
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showClearWatchedEpisodesDialog = true }
+                        .focusable()
+                        .focusRequester(remember { FocusRequester() })
+                        .onKeyEvent { keyEvent ->
+                            when (keyEvent.key) {
+                                Key.Enter, Key.Spacebar -> {
+                                    showClearWatchedEpisodesDialog = true
+                                    true // Handled
+                                }
+                                else -> false // Let default handling occur
+                            }
+                        },
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Text(
+                                text = "Series Episodes Cache",
+                                style = MaterialTheme.typography.titleLarge,
+                                modifier = Modifier
+                                    .padding(start = 8.dp)
+                                    .weight(1f)
+                            )
+                        }
+                        
+                        Text(
+                            text = "Cache size: ${if (watchedEpisodesCacheSize > 0) "${watchedEpisodesCacheSize} bytes" else "Empty"}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        
+                        Spacer(modifier = Modifier.height(4.dp))
+                        
+                        Text(
+                            text = "Tap to clear all watched episode marks",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+        
+        item {
+            AnimatedVisibility(
+                visible = true,
+                enter = fadeIn(animationSpec = tween(1000)) + slideInVertically(animationSpec = tween(1000, delayMillis = 700)),
+                exit = fadeOut(animationSpec = tween(1000)) + slideOutVertically(animationSpec = tween(1000))
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -748,8 +856,8 @@ fun SettingsScreen(
             
             AnimatedVisibility(
                 visible = true,
-                enter = fadeIn(animationSpec = tween(1000)) + slideInVertically(animationSpec = tween(1000, delayMillis = 700)),
-                exit = fadeOut(animationSpec = tween(1000)) + slideOutVertically(animationSpec = tween(1000))
+                enter = fadeIn(animationSpec = tween(1100)) + slideInVertically(animationSpec = tween(1100, delayMillis = 800)),
+                exit = fadeOut(animationSpec = tween(1100)) + slideOutVertically(animationSpec = tween(1100))
             ) {
                 Card(
                     modifier = Modifier
@@ -807,8 +915,8 @@ fun SettingsScreen(
         item {
             AnimatedVisibility(
                 visible = true,
-                enter = fadeIn(animationSpec = tween(1100)) + slideInVertically(animationSpec = tween(1100, delayMillis = 800)),
-                exit = fadeOut(animationSpec = tween(1100)) + slideOutVertically(animationSpec = tween(1100))
+                enter = fadeIn(animationSpec = tween(1200)) + slideInVertically(animationSpec = tween(1200, delayMillis = 900)),
+                exit = fadeOut(animationSpec = tween(1200)) + slideOutVertically(animationSpec = tween(1200))
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -992,6 +1100,36 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(
                     onClick = { showResetDialog = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+    
+    // Clear watched episodes confirmation dialog
+    if (showClearWatchedEpisodesDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearWatchedEpisodesDialog = false },
+            title = {
+                Text(text = "Clear Watched Episodes")
+            },
+            text = {
+                Text("Are you sure you want to clear all watched episode marks? This action cannot be undone.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        clearWatchedEpisodes()
+                        showClearWatchedEpisodesDialog = false
+                    }
+                ) {
+                    Text("Clear All")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showClearWatchedEpisodesDialog = false }
                 ) {
                     Text("Cancel")
                 }

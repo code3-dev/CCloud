@@ -53,3 +53,11 @@ data class Episode(
     val image: String,
     val sources: List<Source>
 )
+
+@Serializable
+data class WatchedEpisode(
+    val seriesId: Int,
+    val seasonId: Int,
+    val episodeId: Int,
+    val watchedAt: Long = System.currentTimeMillis()
+)

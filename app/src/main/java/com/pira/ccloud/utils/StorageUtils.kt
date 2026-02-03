@@ -9,6 +9,7 @@ import com.pira.ccloud.data.model.Series
 import com.pira.ccloud.data.model.SubtitleSettings
 import com.pira.ccloud.data.model.VideoPlayerSettings
 import com.pira.ccloud.data.model.FontSettings
+import com.pira.ccloud.data.model.WatchedEpisode
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -516,6 +517,93 @@ object StorageUtils {
         } catch (e: Exception) {
             Log.e(TAG, "Error checking welcome completed state", e)
             false
+        }
+    }
+    
+    // Watched episodes functions
+    fun saveWatchedEpisode(context: Context, watchedEpisode: WatchedEpisode) {
+        try {
+            val watchedEpisodes = loadAllWatchedEpisodes(context).toMutableList()
+            
+            // Remove existing entry for the same episode if it exists
+            watchedEpisodes.removeAll { 
+                it.seriesId == watchedEpisode.seriesId && 
+                it.seasonId == watchedEpisode.seasonId && 
+                it.episodeId == watchedEpisode.episodeId 
+            }
+            
+            // Add the new watched episode
+            watchedEpisodes.add(watchedEpisode)
+            
+            // Save all watched episodes to a single file
+            val jsonString = Json.encodeToString(watchedEpisodes)
+            val file = File(context.filesDir, "watched_episodes.json")
+            file.writeText(jsonString)
+            Log.d(TAG, "Watched episode saved: Series ${watchedEpisode.seriesId}, Season ${watchedEpisode.seasonId}, Episode ${watchedEpisode.episodeId}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving watched episode", e)
+        }
+    }
+    
+    fun removeWatchedEpisode(context: Context, seriesId: Int, seasonId: Int, episodeId: Int) {
+        try {
+            val watchedEpisodes = loadAllWatchedEpisodes(context).toMutableList()
+            
+            // Remove the watched episode with matching ids
+            watchedEpisodes.removeAll { 
+                it.seriesId == seriesId && 
+                it.seasonId == seasonId && 
+                it.episodeId == episodeId 
+            }
+            
+            // Save updated watched episodes list
+            val jsonString = Json.encodeToString(watchedEpisodes)
+            val file = File(context.filesDir, "watched_episodes.json")
+            file.writeText(jsonString)
+            Log.d(TAG, "Watched episode removed: Series $seriesId, Season $seasonId, Episode $episodeId")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error removing watched episode", e)
+        }
+    }
+    
+    fun isEpisodeWatched(context: Context, seriesId: Int, seasonId: Int, episodeId: Int): Boolean {
+        return try {
+            val watchedEpisodes = loadAllWatchedEpisodes(context)
+            watchedEpisodes.any { 
+                it.seriesId == seriesId && 
+                it.seasonId == seasonId && 
+                it.episodeId == episodeId 
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking if episode is watched", e)
+            false
+        }
+    }
+    
+    fun loadAllWatchedEpisodes(context: Context): List<WatchedEpisode> {
+        return try {
+            val file = File(context.filesDir, "watched_episodes.json")
+            if (file.exists()) {
+                val jsonString = file.readText()
+                Json.decodeFromString<List<WatchedEpisode>>(jsonString)
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading all watched episodes", e)
+            emptyList()
+        }
+    }
+    
+    fun clearAllWatchedEpisodes(context: Context) {
+        try {
+            val file = File(context.filesDir, "watched_episodes.json")
+            if (file.exists()) {
+                file.delete()
+            }
+            Log.d(TAG, "All watched episodes cleared")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error clearing all watched episodes", e)
         }
     }
 }
