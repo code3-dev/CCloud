@@ -40,7 +40,7 @@ CCloud is a modern Android streaming application built with Jetpack Compose and 
 
 <div align="center">
 
-[![Universal](https://img.shields.io/badge/⬇️%20Download-Universal-purple?style=for-the-badge&logo=android)](https://github.com/code3-dev/CCloud/releases/latest/download/CCloud-universal.apk)
+[![Universal](https://img.shields.io/badge/⬇️%20Download-Universal-purple?style=for-the-badge&logo=android)](https://github.com/IbrahimHosseini/CCloud/releases/download/v2.0.1/app-universal-release.apk)
 
 </div>
 
