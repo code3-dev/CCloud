@@ -104,6 +104,7 @@ import com.pira.ccloud.data.model.VideoPlayerSettings
 import com.pira.ccloud.data.model.FontSettings
 import com.pira.ccloud.data.model.WatchedEpisode
 import com.pira.ccloud.utils.StorageUtils
+import com.pira.ccloud.sync.ProgressPolicy
 import com.pira.ccloud.ui.theme.FontManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -139,27 +140,59 @@ fun PlayerView.setSubtitleColors(settings: SubtitleSettings, typeface: Typeface?
     // This is a known limitation of ExoPlayer's subtitle rendering system.
 }
 
+/**
+ * Saves the player's position under [progressKey] (see ProgressPolicy for when it's kept). Does
+ * nothing for trailers, which have no key.
+ */
+fun savePlaybackPosition(context: Context, progressKey: String?, player: ExoPlayer?) {
+    if (progressKey == null || player == null) return
+    try {
+        val duration = player.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0L
+        StorageUtils.savePlaybackProgress(context, progressKey, player.currentPosition, duration)
+    } catch (e: Exception) {
+        // Never let saving the position disturb playback
+    }
+}
+
 class VideoPlayerActivity : ComponentActivity() {
     companion object {
         const val EXTRA_VIDEO_URL = "video_url"
         const val EXTRA_SERIES_ID = "series_id"
         const val EXTRA_SEASON_ID = "season_id"
         const val EXTRA_EPISODE_ID = "episode_id"
+        const val EXTRA_PROGRESS_KEY = "progress_key"
+        const val EXTRA_START_POSITION_MS = "start_position_ms"
         const val REQUEST_WRITE_SETTINGS = 1001
         
-        fun start(context: Context, videoUrl: String) {
+        /**
+         * [progressKey] (SyncKeys.movieProgress / episodeProgress) makes the player save its
+         * position; leave it null for trailers. [startPositionMs] resumes from a saved position.
+         */
+        fun start(context: Context, videoUrl: String, progressKey: String? = null, startPositionMs: Long = 0L) {
             val intent = Intent(context, VideoPlayerActivity::class.java).apply {
                 putExtra(EXTRA_VIDEO_URL, videoUrl)
+                putExtra(EXTRA_PROGRESS_KEY, progressKey)
+                putExtra(EXTRA_START_POSITION_MS, startPositionMs)
             }
             context.startActivity(intent)
         }
         
-        fun startWithEpisodeInfo(context: Context, videoUrl: String, seriesId: Int, seasonId: Int, episodeId: Int) {
+        fun startWithEpisodeInfo(
+            context: Context,
+            videoUrl: String,
+            seriesId: Int,
+            seasonId: Int,
+            episodeId: Int,
+            progressKey: String? = null,
+            startPositionMs: Long = 0L
+        ) {
             val intent = Intent(context, VideoPlayerActivity::class.java).apply {
                 putExtra(EXTRA_VIDEO_URL, videoUrl)
                 putExtra(EXTRA_SERIES_ID, seriesId)
                 putExtra(EXTRA_SEASON_ID, seasonId)
                 putExtra(EXTRA_EPISODE_ID, episodeId)
+                putExtra(EXTRA_PROGRESS_KEY, progressKey)
+                putExtra(EXTRA_START_POSITION_MS, startPositionMs)
             }
             context.startActivity(intent)
         }
@@ -170,6 +203,8 @@ class VideoPlayerActivity : ComponentActivity() {
     private var seriesId: Int? = null
     private var seasonId: Int? = null
     private var episodeId: Int? = null
+    private var progressKey: String? = null
+    private var startPositionMs = 0L
     private var playerInitialized = false
     private var isActivityResumed = false
     private var hasMarkedAsWatched = false
@@ -192,6 +227,8 @@ class VideoPlayerActivity : ComponentActivity() {
         seriesId = intent.getIntExtra(EXTRA_SERIES_ID, -1).takeIf { it != -1 }
         seasonId = intent.getIntExtra(EXTRA_SEASON_ID, -1).takeIf { it != -1 }
         episodeId = intent.getIntExtra(EXTRA_EPISODE_ID, -1).takeIf { it != -1 }
+        progressKey = intent.getStringExtra(EXTRA_PROGRESS_KEY)
+        startPositionMs = intent.getLongExtra(EXTRA_START_POSITION_MS, 0L).coerceAtLeast(0L)
         
         if (videoUrl != null) {
             setContent {
@@ -200,6 +237,8 @@ class VideoPlayerActivity : ComponentActivity() {
                     seriesId = seriesId,
                     seasonId = seasonId,
                     episodeId = episodeId,
+                    progressKey = progressKey,
+                    startPositionMs = startPositionMs,
                     onBack = this::finish,
                     onKeyHandlerChanged = { playerKeyHandler = it }
                 ) { player ->
@@ -306,6 +345,7 @@ class VideoPlayerActivity : ComponentActivity() {
         // Stop player completely when activity pauses (app switch or screen off)
         try {
             if (playerInitialized && exoPlayer != null) {
+                savePlaybackPosition(this, progressKey, exoPlayer)
                 exoPlayer?.playWhenReady = false
                 // Note: currentPosition is managed in the Composable scope
                 // Player will remain paused until user manually starts it
@@ -322,13 +362,15 @@ fun VideoPlayerScreen(
     seriesId: Int?,
     seasonId: Int?,
     episodeId: Int?,
+    progressKey: String? = null,
+    startPositionMs: Long = 0L,
     onBack: () -> Unit,
     onKeyHandlerChanged: (((KeyEvent) -> Boolean)?) -> Unit = {},
     onPlayerReady: (ExoPlayer) -> Unit
 ) {
     val context = LocalContext.current
     var isPlaying by remember { mutableStateOf(true) }
-    var currentPosition by remember { mutableStateOf(0L) }
+    var currentPosition by remember { mutableStateOf(startPositionMs) }
     var duration by remember { mutableStateOf(0L) }
     var showControls by remember { mutableStateOf(true) }
     var isSeeking by remember { mutableStateOf(false) }
@@ -417,7 +459,8 @@ fun VideoPlayerScreen(
                 .setTrackSelector(selector)
                 .build().apply {
                     try {
-                        setMediaItem(MediaItem.fromUri(Uri.parse(videoUrl)))
+                        // Start where the user chose to resume, if anywhere
+                        setMediaItem(MediaItem.fromUri(Uri.parse(videoUrl)), startPositionMs)
                         prepare()
                         // If we're retrying, seek to the current position
                         if (isRetrying && currentPosition > 0) {
@@ -501,6 +544,19 @@ fun VideoPlayerScreen(
         }
     }
     
+    // Save the playback position every few seconds while playing, and whenever playback stops
+    LaunchedEffect(exoPlayer, isPlaying) {
+        if (exoPlayer == null) return@LaunchedEffect
+        if (!isPlaying) {
+            savePlaybackPosition(context, progressKey, exoPlayer)
+            return@LaunchedEffect
+        }
+        while (true) {
+            delay(ProgressPolicy.SAVE_INTERVAL_MS)
+            if (exoPlayer.isPlaying) savePlaybackPosition(context, progressKey, exoPlayer)
+        }
+    }
+    
     // Update playback speed when it changes
     LaunchedEffect(playbackSpeed, exoPlayer) {
         try {
@@ -531,7 +587,8 @@ fun VideoPlayerScreen(
                             exoPlayer?.playWhenReady = isPlaying
                         }
                     } else if (playbackState == Player.STATE_ENDED) {
-                        // Video ended, pause the player
+                        // Video ended, pause the player (and save it as finished)
+                        savePlaybackPosition(context, progressKey, exoPlayer)
                         isPlaying = false
                     }
                 } catch (e: Exception) {
@@ -547,6 +604,9 @@ fun VideoPlayerScreen(
                 try {
                     if (!isSeeking) {
                         currentPosition = exoPlayer?.currentPosition ?: 0L
+                    }
+                    if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+                        savePlaybackPosition(context, progressKey, exoPlayer)
                     }
                 } catch (e: Exception) {
                     // Ignore position errors

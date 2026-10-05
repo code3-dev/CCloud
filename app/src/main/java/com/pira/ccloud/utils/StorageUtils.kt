@@ -10,89 +10,84 @@ import com.pira.ccloud.data.model.SubtitleSettings
 import com.pira.ccloud.data.model.VideoPlayerSettings
 import com.pira.ccloud.data.model.FontSettings
 import com.pira.ccloud.data.model.WatchedEpisode
+import com.pira.ccloud.data.model.sync.ProgressValue
+import com.pira.ccloud.sync.LibraryStore
+import com.pira.ccloud.sync.SettingsMapping
+import com.pira.ccloud.sync.SyncCollection
+import com.pira.ccloud.sync.SyncLibrary
+import com.pira.ccloud.sync.SyncSetting
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 import java.io.File
-import java.util.Date
 
+/**
+ * The app's storage. Favorites, playlists (favorite groups), watched episodes, playback positions
+ * and the synced settings live in [LibraryStore] as sync records; the functions here keep their
+ * old signatures and delegate to it. Settings that don't sync (like the subtitle size) and the
+ * detail-screen cache stay in their own files.
+ */
 object StorageUtils {
     private const val TAG = "StorageUtils"
-    
-    // Favorites functions - using a single JSON file for all favorites
+    private const val DEFAULT_GROUP_ID = "default"
+
+    private fun library(context: Context): LibraryStore = SyncLibrary.get(context)
+
+    /** Increases whenever [collection] (a [SyncCollection]) changes, on this device or by sync. */
+    fun changes(context: Context, collection: String): StateFlow<Int> =
+        library(context).records.changes(collection)
+
+    // Favorites functions
+
     fun saveFavorite(context: Context, favorite: FavoriteItem) {
         try {
-            val favorites = loadAllFavorites(context).toMutableList()
-            
-            // Remove existing favorite with same id and type if it exists
-            favorites.removeAll { it.id == favorite.id && it.type == favorite.type }
-            
-            // Add the new favorite at the beginning of the list (newest first)
-            favorites.add(0, favorite)
-            
-            // Save all favorites to a single file
-            val jsonString = Json.encodeToString(favorites)
-            val file = File(context.filesDir, "favorites.json")
-            file.writeText(jsonString)
+            library(context).addFavorite(favorite)
             Log.d(TAG, "Favorite saved: ${favorite.title}")
         } catch (e: Exception) {
             Log.e(TAG, "Error saving favorite", e)
         }
     }
-    
+
+    /** Removes the favorite and takes it out of every playlist. */
     fun removeFavorite(context: Context, id: Int, type: String) {
         try {
-            val favorites = loadAllFavorites(context).toMutableList()
-            
-            // Remove the favorite with matching id and type
-            favorites.removeAll { it.id == id && it.type == type }
-            
-            // Save updated favorites list
-            val jsonString = Json.encodeToString(favorites)
-            val file = File(context.filesDir, "favorites.json")
-            file.writeText(jsonString)
+            library(context).removeFavorite(type, id)
             Log.d(TAG, "Favorite removed: $id ($type)")
         } catch (e: Exception) {
             Log.e(TAG, "Error removing favorite", e)
         }
     }
-    
+
+    /** Removes every favorite. Playlists stay, but become empty. */
     fun clearAllFavorites(context: Context) {
         try {
-            val file = File(context.filesDir, "favorites.json")
-            if (file.exists()) {
-                file.delete()
-            }
+            library(context).clearFavorites()
             Log.d(TAG, "All favorites cleared")
         } catch (e: Exception) {
             Log.e(TAG, "Error clearing all favorites", e)
         }
     }
-    
+
     fun isFavorite(context: Context, id: Int, type: String): Boolean {
         return try {
-            val favorites = loadAllFavorites(context)
-            favorites.any { it.id == id && it.type == type }
+            library(context).isFavorite(type, id)
         } catch (e: Exception) {
             Log.e(TAG, "Error checking if favorite exists", e)
             false
         }
     }
-    
+
+    /** Newest first. */
     fun loadAllFavorites(context: Context): List<FavoriteItem> {
         return try {
-            val file = File(context.filesDir, "favorites.json")
-            if (file.exists()) {
-                val jsonString = file.readText()
-                Json.decodeFromString<List<FavoriteItem>>(jsonString)
-            } else {
-                emptyList()
-            }
+            library(context).favorites()
         } catch (e: Exception) {
             Log.e(TAG, "Error loading all favorites", e)
             emptyList()
         }
     }
-    
+
     // Function to save favorite to movie or series database when navigating to it
     fun saveFavoriteToDatabase(context: Context, favorite: FavoriteItem) {
         try {
@@ -241,264 +236,207 @@ object StorageUtils {
         }
     }
     
-    // Group functions
+    // Group functions. The default group isn't stored: it always holds every favorite.
+
+    private fun defaultGroup() = FavoriteGroup(id = DEFAULT_GROUP_ID, name = "Favorites", isDefault = true)
+
     fun saveFavoriteGroup(context: Context, group: FavoriteGroup) {
         try {
-            val groups = loadAllFavoriteGroups(context).toMutableList()
-            
-            // Remove existing group with same id if it exists
-            groups.removeAll { it.id == group.id }
-            
-            // Add the new group
-            groups.add(group)
-            
-            // Save all groups to a single file
-            val jsonString = Json.encodeToString(groups)
-            val file = File(context.filesDir, "favorite_groups.json")
-            file.writeText(jsonString)
+            library(context).savePlaylist(group)
             Log.d(TAG, "Favorite group saved: ${group.name}")
         } catch (e: Exception) {
             Log.e(TAG, "Error saving favorite group", e)
         }
     }
-    
+
     fun removeFavoriteGroup(context: Context, groupId: String) {
+        if (groupId == DEFAULT_GROUP_ID) return
         try {
-            val groups = loadAllFavoriteGroups(context).toMutableList()
-            
-            // Remove the group with matching id (but don't allow removing default group)
-            groups.removeAll { it.id == groupId && !it.isDefault }
-            
-            // Save updated groups list
-            val jsonString = Json.encodeToString(groups)
-            val file = File(context.filesDir, "favorite_groups.json")
-            file.writeText(jsonString)
+            library(context).removePlaylist(groupId)
             Log.d(TAG, "Favorite group removed: $groupId")
         } catch (e: Exception) {
             Log.e(TAG, "Error removing favorite group", e)
         }
     }
-    
+
+    /** The default group first, then the playlists in the order they were created. */
     fun loadAllFavoriteGroups(context: Context): List<FavoriteGroup> {
         return try {
-            val file = File(context.filesDir, "favorite_groups.json")
-            if (file.exists()) {
-                val jsonString = file.readText()
-                Json.decodeFromString<List<FavoriteGroup>>(jsonString)
-            } else {
-                // Return a default group if no groups exist
-                listOf(FavoriteGroup(id = "default", name = "Favorites", isDefault = true))
-            }
+            listOf(defaultGroup()) + library(context).playlists()
         } catch (e: Exception) {
             Log.e(TAG, "Error loading all favorite groups", e)
-            // Return a default group if there's an error
-            listOf(FavoriteGroup(id = "default", name = "Favorites", isDefault = true))
+            listOf(defaultGroup())
         }
     }
-    
-    fun getDefaultGroup(context: Context): FavoriteGroup {
-        val groups = loadAllFavoriteGroups(context)
-        return groups.find { it.isDefault } ?: FavoriteGroup(id = "default", name = "Favorites", isDefault = true)
-    }
-    
+
+    fun getDefaultGroup(context: Context): FavoriteGroup = defaultGroup()
+
     fun addFavoriteToGroup(context: Context, groupId: String, favoriteId: Int, type: String) {
+        if (groupId == DEFAULT_GROUP_ID) return
         try {
-            val groups = loadAllFavoriteGroups(context).toMutableList()
-            val group = groups.find { it.id == groupId }
-            
-            if (group != null) {
-                // Add to the specified group (allowing multiple groups)
-                if (type == "movie") {
-                    group.addMovie(favoriteId)
-                } else if (type == "series") {
-                    group.addSeries(favoriteId)
-                }
-                
-                // Save updated groups
-                val jsonString = Json.encodeToString(groups)
-                val file = File(context.filesDir, "favorite_groups.json")
-                file.writeText(jsonString)
-                Log.d(TAG, "Favorite added to group: $groupId")
-            }
+            library(context).addToPlaylist(groupId, type, favoriteId)
+            Log.d(TAG, "Favorite added to group: $groupId")
         } catch (e: Exception) {
             Log.e(TAG, "Error adding favorite to group", e)
         }
     }
-    
+
     fun removeFavoriteFromGroup(context: Context, groupId: String, favoriteId: Int, type: String) {
+        if (groupId == DEFAULT_GROUP_ID) return
         try {
-            val groups = loadAllFavoriteGroups(context).toMutableList()
-            val group = groups.find { it.id == groupId }
-            
-            if (group != null) {
-                if (type == "movie") {
-                    group.removeMovie(favoriteId)
-                } else if (type == "series") {
-                    group.removeSeries(favoriteId)
-                }
-                
-                // Save updated groups
-                val jsonString = Json.encodeToString(groups)
-                val file = File(context.filesDir, "favorite_groups.json")
-                file.writeText(jsonString)
-                Log.d(TAG, "Favorite removed from group: $groupId")
-            }
+            library(context).removeFromPlaylist(groupId, type, favoriteId)
+            Log.d(TAG, "Favorite removed from group: $groupId")
         } catch (e: Exception) {
             Log.e(TAG, "Error removing favorite from group", e)
         }
     }
-    
-    // New function to get all groups for a specific favorite
+
+    /** The playlists (not the default group) that contain a favorite. */
     fun getGroupsForFavorite(context: Context, favoriteId: Int, type: String): List<FavoriteGroup> {
         return try {
-            val groups = loadAllFavoriteGroups(context)
-            groups.filter { group ->
-                if (type == "movie") {
-                    group.containsMovie(favoriteId)
-                } else if (type == "series") {
-                    group.containsSeries(favoriteId)
-                } else {
-                    false
-                }
-            }
+            library(context).playlistsContaining(type, favoriteId)
         } catch (e: Exception) {
             Log.e(TAG, "Error getting groups for favorite", e)
             emptyList()
         }
     }
-    
-    // New function to check if a favorite is in a specific group
+
     fun isFavoriteInGroup(context: Context, groupId: String, favoriteId: Int, type: String): Boolean {
+        if (groupId == DEFAULT_GROUP_ID) return isFavorite(context, favoriteId, type)
         return try {
-            val groups = loadAllFavoriteGroups(context)
-            val group = groups.find { it.id == groupId }
-            if (group != null) {
-                if (type == "movie") {
-                    group.containsMovie(favoriteId)
-                } else if (type == "series") {
-                    group.containsSeries(favoriteId)
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
+            library(context).isInPlaylist(groupId, type, favoriteId)
         } catch (e: Exception) {
             Log.e(TAG, "Error checking if favorite is in group", e)
             false
         }
     }
-    
+
+    /** The favorites in a group, most recently added first. */
     fun getFavoritesInGroup(context: Context, groupId: String): List<FavoriteItem> {
+        if (groupId == DEFAULT_GROUP_ID) return loadAllFavorites(context)
         return try {
-            val allFavorites = loadAllFavorites(context)
-            val groups = loadAllFavoriteGroups(context)
-            val group = groups.find { it.id == groupId }
-            
-            if (group != null) {
-                val movieFavorites = allFavorites.filter { favorite ->
-                    favorite.type == "movie" && group.movieIds.contains(favorite.id)
-                }
-                
-                val seriesFavorites = allFavorites.filter { favorite ->
-                    favorite.type == "series" && group.seriesIds.contains(favorite.id)
-                }
-                
-                // Combine and sort by insertion order (newest first)
-                (movieFavorites + seriesFavorites).sortedByDescending { favorite ->
-                    // We don't have timestamps, so we'll just return them as is
-                    favorite.id
-                }
-            } else {
-                emptyList()
-            }
+            library(context).favoritesInPlaylist(groupId)
         } catch (e: Exception) {
             Log.e(TAG, "Error getting favorites in group", e)
             emptyList()
         }
     }
-    
-    // Subtitle settings functions
+
+    // Settings. Each settings file holds every field; the synced fields are also stored as sync
+    // records, and the records win when loading, since another device may have changed them.
+
+    private inline fun <reified T> readSettingsFile(context: Context, name: String): T? {
+        val file = File(context.filesDir, name)
+        return if (file.exists()) Json.decodeFromString<T>(file.readText()) else null
+    }
+
+    private inline fun <reified T> writeSettingsFile(context: Context, name: String, settings: T) {
+        File(context.filesDir, name).writeText(Json.encodeToString(settings))
+    }
+
+    // Subtitle settings functions. The text and background colors sync; the size doesn't.
     fun saveSubtitleSettings(context: Context, settings: SubtitleSettings) {
         try {
-            val jsonString = Json.encodeToString(settings)
-            val file = File(context.filesDir, "subtitle_settings.json")
-            file.writeText(jsonString)
+            writeSettingsFile(context, "subtitle_settings.json", settings)
+            val library = library(context)
+            SettingsMapping.textColorName(settings.textColor)?.let {
+                library.setSetting(SyncSetting.SUBTITLE_TEXT_COLOR, JsonPrimitive(it), JsonPrimitive(SettingsMapping.DEFAULT_TEXT_COLOR))
+            }
+            SettingsMapping.backgroundName(settings.borderColor)?.let {
+                library.setSetting(SyncSetting.SUBTITLE_BACKGROUND, JsonPrimitive(it), JsonPrimitive(SettingsMapping.DEFAULT_BACKGROUND))
+            }
             Log.d(TAG, "Subtitle settings saved to file")
         } catch (e: Exception) {
             Log.e(TAG, "Error saving subtitle settings to file", e)
         }
     }
-    
+
     fun loadSubtitleSettings(context: Context): SubtitleSettings {
-        return try {
-            val file = File(context.filesDir, "subtitle_settings.json")
-            if (file.exists()) {
-                val jsonString = file.readText()
-                Json.decodeFromString<SubtitleSettings>(jsonString)
-            } else {
-                SubtitleSettings.getDefaultSettings(context)
-            }
+        val local = try {
+            readSettingsFile<SubtitleSettings>(context, "subtitle_settings.json")
+                ?: SubtitleSettings.getDefaultSettings(context)
         } catch (e: Exception) {
             Log.e(TAG, "Error loading subtitle settings from file", e)
             SubtitleSettings.getDefaultSettings(context)
         }
+        return try {
+            val library = library(context)
+            local.copy(
+                textColor = library.settingString(SyncSetting.SUBTITLE_TEXT_COLOR)
+                    ?.let(SettingsMapping::textColorArgb) ?: local.textColor,
+                borderColor = library.settingString(SyncSetting.SUBTITLE_BACKGROUND)
+                    ?.let(SettingsMapping::backgroundArgb) ?: local.borderColor
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading synced subtitle settings", e)
+            local
+        }
     }
-    
+
     // Video player settings functions
     fun saveVideoPlayerSettings(context: Context, settings: VideoPlayerSettings) {
         try {
-            val jsonString = Json.encodeToString(settings)
-            val file = File(context.filesDir, "video_player_settings.json")
-            file.writeText(jsonString)
+            writeSettingsFile(context, "video_player_settings.json", settings)
+            SettingsMapping.seekInterval(settings.seekTimeSeconds)?.let {
+                library(context).setSetting(SyncSetting.SEEK_INTERVAL, JsonPrimitive(it), JsonPrimitive(SettingsMapping.DEFAULT_SEEK_INTERVAL))
+            }
             Log.d(TAG, "Video player settings saved to file")
         } catch (e: Exception) {
             Log.e(TAG, "Error saving video player settings to file", e)
         }
     }
-    
+
     fun loadVideoPlayerSettings(context: Context): VideoPlayerSettings {
-        return try {
-            val file = File(context.filesDir, "video_player_settings.json")
-            if (file.exists()) {
-                val jsonString = file.readText()
-                Json.decodeFromString<VideoPlayerSettings>(jsonString)
-            } else {
-                VideoPlayerSettings.DEFAULT
-            }
+        val local = try {
+            readSettingsFile<VideoPlayerSettings>(context, "video_player_settings.json") ?: VideoPlayerSettings.DEFAULT
         } catch (e: Exception) {
             Log.e(TAG, "Error loading video player settings from file", e)
             VideoPlayerSettings.DEFAULT
         }
+        return try {
+            library(context).settingInt(SyncSetting.SEEK_INTERVAL)
+                ?.let(SettingsMapping::seekInterval)
+                ?.let { local.copy(seekTimeSeconds = it) }
+                ?: local
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading synced video player settings", e)
+            local
+        }
     }
-    
+
     // Font settings functions
     fun saveFontSettings(context: Context, settings: FontSettings) {
         try {
-            val jsonString = Json.encodeToString(settings)
-            val file = File(context.filesDir, "font_settings.json")
-            file.writeText(jsonString)
+            writeSettingsFile(context, "font_settings.json", settings)
+            library(context).setSetting(
+                SyncSetting.FONT,
+                JsonPrimitive(SettingsMapping.fontName(settings.fontType)),
+                JsonPrimitive(SettingsMapping.DEFAULT_FONT)
+            )
             Log.d(TAG, "Font settings saved to file")
         } catch (e: Exception) {
             Log.e(TAG, "Error saving font settings to file", e)
         }
     }
-    
+
     fun loadFontSettings(context: Context): FontSettings {
-        return try {
-            val file = File(context.filesDir, "font_settings.json")
-            if (file.exists()) {
-                val jsonString = file.readText()
-                Json.decodeFromString<FontSettings>(jsonString)
-            } else {
-                FontSettings.DEFAULT
-            }
+        val local = try {
+            readSettingsFile<FontSettings>(context, "font_settings.json") ?: FontSettings.DEFAULT
         } catch (e: Exception) {
             Log.e(TAG, "Error loading font settings from file", e)
             FontSettings.DEFAULT
         }
+        return try {
+            library(context).settingString(SyncSetting.FONT)
+                ?.let(SettingsMapping::fontType)
+                ?.let { local.copy(fontType = it) }
+                ?: local
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading synced font settings", e)
+            local
+        }
     }
-    
+
     // Welcome screen state functions
     fun saveWelcomeCompleted(context: Context) {
         try {
@@ -523,87 +461,89 @@ object StorageUtils {
     // Watched episodes functions
     fun saveWatchedEpisode(context: Context, watchedEpisode: WatchedEpisode) {
         try {
-            val watchedEpisodes = loadAllWatchedEpisodes(context).toMutableList()
-            
-            // Remove existing entry for the same episode if it exists
-            watchedEpisodes.removeAll { 
-                it.seriesId == watchedEpisode.seriesId && 
-                it.seasonId == watchedEpisode.seasonId && 
-                it.episodeId == watchedEpisode.episodeId 
-            }
-            
-            // Add the new watched episode
-            watchedEpisodes.add(watchedEpisode)
-            
-            // Save all watched episodes to a single file
-            val jsonString = Json.encodeToString(watchedEpisodes)
-            val file = File(context.filesDir, "watched_episodes.json")
-            file.writeText(jsonString)
+            library(context).markWatched(watchedEpisode)
             Log.d(TAG, "Watched episode saved: Series ${watchedEpisode.seriesId}, Season ${watchedEpisode.seasonId}, Episode ${watchedEpisode.episodeId}")
         } catch (e: Exception) {
             Log.e(TAG, "Error saving watched episode", e)
         }
     }
-    
+
     fun removeWatchedEpisode(context: Context, seriesId: Int, seasonId: Int, episodeId: Int) {
         try {
-            val watchedEpisodes = loadAllWatchedEpisodes(context).toMutableList()
-            
-            // Remove the watched episode with matching ids
-            watchedEpisodes.removeAll { 
-                it.seriesId == seriesId && 
-                it.seasonId == seasonId && 
-                it.episodeId == episodeId 
-            }
-            
-            // Save updated watched episodes list
-            val jsonString = Json.encodeToString(watchedEpisodes)
-            val file = File(context.filesDir, "watched_episodes.json")
-            file.writeText(jsonString)
+            library(context).unmarkWatched(seriesId, seasonId, episodeId)
             Log.d(TAG, "Watched episode removed: Series $seriesId, Season $seasonId, Episode $episodeId")
         } catch (e: Exception) {
             Log.e(TAG, "Error removing watched episode", e)
         }
     }
-    
+
     fun isEpisodeWatched(context: Context, seriesId: Int, seasonId: Int, episodeId: Int): Boolean {
         return try {
-            val watchedEpisodes = loadAllWatchedEpisodes(context)
-            watchedEpisodes.any { 
-                it.seriesId == seriesId && 
-                it.seasonId == seasonId && 
-                it.episodeId == episodeId 
-            }
+            library(context).isWatched(seriesId, seasonId, episodeId)
         } catch (e: Exception) {
             Log.e(TAG, "Error checking if episode is watched", e)
             false
         }
     }
-    
+
     fun loadAllWatchedEpisodes(context: Context): List<WatchedEpisode> {
         return try {
-            val file = File(context.filesDir, "watched_episodes.json")
-            if (file.exists()) {
-                val jsonString = file.readText()
-                Json.decodeFromString<List<WatchedEpisode>>(jsonString)
-            } else {
-                emptyList()
-            }
+            library(context).watchedEpisodes()
         } catch (e: Exception) {
             Log.e(TAG, "Error loading all watched episodes", e)
             emptyList()
         }
     }
-    
+
     fun clearAllWatchedEpisodes(context: Context) {
         try {
-            val file = File(context.filesDir, "watched_episodes.json")
-            if (file.exists()) {
-                file.delete()
-            }
+            library(context).clearWatched()
             Log.d(TAG, "All watched episodes cleared")
         } catch (e: Exception) {
             Log.e(TAG, "Error clearing all watched episodes", e)
+        }
+    }
+
+    /**
+     * Bytes the watched-episodes history takes on disk, or 0 when nothing is marked (cleared marks
+     * stay on disk as deletions until they have synced).
+     */
+    fun watchedEpisodesStorageSize(context: Context): Long {
+        return try {
+            val records = library(context).records
+            if (records.live(SyncCollection.WATCHED).isEmpty()) 0L else records.fileSize(SyncCollection.WATCHED)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error calculating watched episodes size", e)
+            0L
+        }
+    }
+
+    // Playback positions. Keys come from SyncKeys.movieProgress / episodeProgress.
+
+    fun loadPlaybackProgress(context: Context, key: String): ProgressValue? {
+        return try {
+            library(context).progress(key)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading playback progress", e)
+            null
+        }
+    }
+
+    /** Saves a position under ProgressPolicy (nothing before 30 s; finished from 95 %). */
+    fun savePlaybackProgress(context: Context, key: String, positionMs: Long, durationMs: Long): ProgressValue? {
+        return try {
+            library(context).recordProgress(key, positionMs, durationMs)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving playback progress", e)
+            null
+        }
+    }
+
+    fun clearPlaybackProgress(context: Context, key: String) {
+        try {
+            library(context).clearProgress(key)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error clearing playback progress", e)
         }
     }
 }

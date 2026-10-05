@@ -1,0 +1,68 @@
+[
+  {
+    "name": "a record wins over nothing",
+    "existing": null,
+    "incoming": { "c": "favorite", "k": "movie:1", "v": {}, "t": 100, "dev": "a" },
+    "incomingWins": true
+  },
+  {
+    "name": "a newer add wins over an older add",
+    "existing": { "c": "favorite", "k": "movie:1", "v": {}, "t": 100, "dev": "b" },
+    "incoming": { "c": "favorite", "k": "movie:1", "v": {}, "t": 200, "dev": "a" },
+    "incomingWins": true
+  },
+  {
+    "name": "an older add loses to a newer add",
+    "existing": { "c": "favorite", "k": "movie:1", "v": {}, "t": 200, "dev": "a" },
+    "incoming": { "c": "favorite", "k": "movie:1", "v": {}, "t": 100, "dev": "b" },
+    "incomingWins": false
+  },
+  {
+    "name": "a newer deletion wins over an add",
+    "existing": { "c": "favorite", "k": "movie:1", "v": {}, "t": 100, "dev": "a" },
+    "incoming": { "c": "favorite", "k": "movie:1", "t": 200, "d": true, "dev": "b" },
+    "incomingWins": true
+  },
+  {
+    "name": "an older deletion loses to a newer add",
+    "existing": { "c": "favorite", "k": "movie:1", "v": {}, "t": 200, "dev": "a" },
+    "incoming": { "c": "favorite", "k": "movie:1", "t": 100, "d": true, "dev": "b" },
+    "incomingWins": false
+  },
+  {
+    "name": "a newer add wins over a deletion",
+    "existing": { "c": "favorite", "k": "movie:1", "t": 100, "d": true, "dev": "a" },
+    "incoming": { "c": "favorite", "k": "movie:1", "v": {}, "t": 200, "dev": "b" },
+    "incomingWins": true
+  },
+  {
+    "name": "on equal time the greater device id wins",
+    "existing": { "c": "setting", "k": "font", "v": {"value": "system"}, "t": 100, "dev": "a" },
+    "incoming": { "c": "setting", "k": "font", "v": {"value": "vazirmatn"}, "t": 100, "dev": "b" },
+    "incomingWins": true
+  },
+  {
+    "name": "on equal time the smaller device id loses",
+    "existing": { "c": "setting", "k": "font", "v": {"value": "vazirmatn"}, "t": 100, "dev": "b" },
+    "incoming": { "c": "setting", "k": "font", "v": {"value": "system"}, "t": 100, "dev": "a" },
+    "incomingWins": false
+  },
+  {
+    "name": "the same record again changes nothing",
+    "existing": { "c": "watched", "k": "1:2:3", "v": {"watchedAt": 5}, "t": 100, "dev": "a" },
+    "incoming": { "c": "watched", "k": "1:2:3", "v": {"watchedAt": 5}, "t": 100, "dev": "a" },
+    "incomingWins": false
+  },
+  {
+    "name": "a newer earlier position wins (start over goes back)",
+    "existing": { "c": "progress", "k": "movie:7", "v": {"positionMs": 2530000, "durationMs": 6000000, "completed": false}, "t": 100, "dev": "a" },
+    "incoming": { "c": "progress", "k": "movie:7", "v": {"positionMs": 45000, "durationMs": 6000000, "completed": false}, "t": 200, "dev": "b" },
+    "incomingWins": true
+  },
+  {
+    "name": "a migrated record loses to any real change",
+    "existing": { "c": "favorite", "k": "series:9", "v": {}, "t": 1, "dev": "z" },
+    "incoming": { "c": "favorite", "k": "series:9", "t": 2, "d": true, "dev": "a" },
+    "incomingWins": true
+  }
+]

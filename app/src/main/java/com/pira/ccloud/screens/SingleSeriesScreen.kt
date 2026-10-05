@@ -45,6 +45,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -66,8 +67,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
-import com.pira.ccloud.VideoPlayerActivity
 import com.pira.ccloud.components.DownloadOptionsDialog
+import com.pira.ccloud.components.EpisodeIds
+import com.pira.ccloud.components.PendingPlayback
+import com.pira.ccloud.components.ResumePlaybackDialog
+import com.pira.ccloud.components.playOrAskToResume
+import com.pira.ccloud.sync.SyncCollection
+import com.pira.ccloud.sync.SyncKeys
+import com.pira.ccloud.sync.TrailerMarkers
 import com.pira.ccloud.components.ExpandableText
 import com.pira.ccloud.components.focusRing
 import com.pira.ccloud.components.initialFocus
@@ -98,6 +105,23 @@ fun SingleSeriesScreen(
     // The season whose episodes are listed, and so the one an episode is played (and marked as
     // watched) in
     var selectedSeasonIndex by remember { mutableStateOf(0) }
+    // A playback waiting for the resume / start over choice
+    var pendingPlayback by remember { mutableStateOf<PendingPlayback?>(null) }
+    
+    // Plays an episode, first offering to resume a saved position. Trailers have no saved position.
+    fun playEpisode(episode: Episode, source: Source, season: Season) {
+        val ids = EpisodeIds(seriesId, season.id, episode.id)
+        val progressKey = if (TrailerMarkers.isTrailer(episode) || TrailerMarkers.isTrailer(source)) {
+            null
+        } else {
+            SyncKeys.episodeProgress(ids.seriesId, ids.seasonId, ids.episodeId)
+        }
+        pendingPlayback = playOrAskToResume(context, source.url, progressKey, ids)
+    }
+    
+    pendingPlayback?.let { pending ->
+        ResumePlaybackDialog(pending, onDone = { pendingPlayback = null })
+    }
     
     LaunchedEffect(seriesId) {
         series = StorageUtils.loadSeriesFromFile(context, seriesId)
@@ -119,13 +143,7 @@ fun SingleSeriesScreen(
             onPlay = { source ->
                 showSourceDialog = false
                 // Launch video player activity with the selected source URL and episode info
-                VideoPlayerActivity.startWithEpisodeInfo(
-                    context,
-                    source.url,
-                    series!!.id,
-                    selectedSeason.id,
-                    selectedEpisode!!.id
-                )
+                playEpisode(selectedEpisode!!, source, selectedSeason)
             }
         )
     }
@@ -159,13 +177,7 @@ fun SingleSeriesScreen(
                         showSourceDialog = true
                     } else {
                         // Directly play if there's only one source
-                        VideoPlayerActivity.startWithEpisodeInfo(
-                            context, 
-                            episode.sources[0].url,
-                            series!!.id,
-                            selectedSeason.id,
-                            episode.id
-                        )
+                        playEpisode(episode, episode.sources[0], selectedSeason)
                     }
                 }
             },
@@ -412,8 +424,10 @@ fun SeriesDetailsContent(
     val layoutDirection = LocalLayoutDirection.current
     var showEpisodeImageDialog by remember { mutableStateOf(false) }
     var episodeImageUrl by remember { mutableStateOf("") }
-    // The player marks episodes as watched, so read the marks again when coming back from it
+    // The player marks episodes as watched, so read the marks again when coming back from it, and
+    // when they change through sync
     var watchedMarksVersion by remember { mutableIntStateOf(0) }
+    val syncedWatchedVersion by StorageUtils.changes(context, SyncCollection.WATCHED).collectAsState()
     LifecycleResumeEffect(Unit) {
         watchedMarksVersion++
         onPauseOrDispose { }
@@ -588,8 +602,9 @@ fun SeriesDetailsContent(
             val context = LocalContext.current
             val seriesId = series.id
             
-            // Check if series is already favorite
-            LaunchedEffect(seriesId) {
+            // Check if series is already favorite (again when favorites change, e.g. through sync)
+            val favoritesVersion by StorageUtils.changes(context, SyncCollection.FAVORITE).collectAsState()
+            LaunchedEffect(seriesId, favoritesVersion) {
                 isFavorite = StorageUtils.isFavorite(context, seriesId, "series")
             }
             
@@ -829,7 +844,7 @@ fun SeriesDetailsContent(
                 )
                 
                 selectedSeason.episodes.forEachIndexed { index, episode ->
-                    val isEpisodeWatched = remember(watchedMarksVersion, selectedSeason.id, episode.id) {
+                    val isEpisodeWatched = remember(watchedMarksVersion, syncedWatchedVersion, selectedSeason.id, episode.id) {
                         StorageUtils.isEpisodeWatched(context, series.id, selectedSeason.id, episode.id)
                     }
                     EpisodeItem(

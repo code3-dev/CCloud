@@ -131,17 +131,7 @@ fun SettingsScreen(
     
     // Load watched episodes cache size when screen is shown
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        watchedEpisodesCacheSize = try {
-            val file = java.io.File(context.filesDir, "watched_episodes.json")
-            if (file.exists()) {
-                file.length()
-            } else {
-                0L
-            }
-        } catch (e: Exception) {
-            Log.e("SettingsScreen", "Error calculating cache size", e)
-            0L
-        }
+        watchedEpisodesCacheSize = StorageUtils.watchedEpisodesStorageSize(context)
     }
     
     // Update parent when settings change
@@ -186,19 +176,7 @@ fun SettingsScreen(
     }
     
     // Calculate watched episodes cache size
-    fun calculateWatchedEpisodesCacheSize(): Long {
-        return try {
-            val file = java.io.File(context.filesDir, "watched_episodes.json")
-            if (file.exists()) {
-                file.length()
-            } else {
-                0L
-            }
-        } catch (e: Exception) {
-            Log.e("SettingsScreen", "Error calculating cache size", e)
-            0L
-        }
-    }
+    fun calculateWatchedEpisodesCacheSize(): Long = StorageUtils.watchedEpisodesStorageSize(context)
     
     // Clear all watched episodes
     fun clearWatchedEpisodes() {

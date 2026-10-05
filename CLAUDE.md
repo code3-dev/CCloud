@@ -22,15 +22,15 @@ CCloud is a single-module (`:app`) Android streaming client (movies / TV series)
 
 ### Tests
 
-There are currently **no test sources** (`app/src/test` and `app/src/androidTest` don't exist), although JUnit, Espresso and Compose UI test dependencies are declared. When adding tests: `./gradlew testDebugUnitTest --tests "com.pira.ccloud.SomeTest"` for a single JVM test, `./gradlew connectedDebugAndroidTest` for instrumented tests.
+JVM unit tests live in `app/src/test` (the sync storage in `com.pira.ccloud.sync`); there are no instrumented tests yet. `./gradlew testDebugUnitTest` runs them, `./gradlew testDebugUnitTest --tests "com.pira.ccloud.sync.LibraryStoreTest"` runs one class, and `./gradlew connectedDebugAndroidTest` would run instrumented tests. `app/src/test/resources/sync-fixtures/` holds cases shared with the Apple app (merge rule, settings mapping); keep both apps passing the same fixtures.
 
 ## Architecture
 
-The README's architecture section overstates things: there is no domain layer, no LiveData/Flow, no DI, and the Leanback library is a dependency but the TV UI is pure Compose. What actually exists:
+The README's architecture section overstates things: there is no domain layer, no LiveData, no DI (the only Flow is the sync storage's change counter, see Persistence), and the Leanback library is a dependency but the TV UI is pure Compose. What actually exists:
 
 ### Two activities
 - `MainActivity` hosts the whole Compose app (`MainApp` → `MainScreen` → `AppNavigation`).
-- `VideoPlayerActivity` is a separate, landscape, fullscreen activity. Start it only via `VideoPlayerActivity.start(context, url)` or `startWithEpisodeInfo(...)` (the episode ids are used to mark the episode as watched). It embeds a Media3 `PlayerView` with `useController = false` inside `AndroidView`, and draws its **own** Compose control overlay (seek bar, play/pause, speed, track-selection dialog). Remote-control handling is described under "Android TV remote input" below.
+- `VideoPlayerActivity` is a separate, landscape, fullscreen activity. Detail screens start it through `components/ResumePlayback.kt` (`playOrAskToResume`), which offers to continue from a saved position; that calls `VideoPlayerActivity.start(context, url, progressKey, startPositionMs)` or `startWithEpisodeInfo(...)` (the episode ids are used to mark the episode as watched). With a `progressKey` (`SyncKeys.movieProgress` / `episodeProgress`; null for trailers, see `TrailerMarkers`) the player saves its position every 10 s, on pause, after a seek and at the end, under the rules in `ProgressPolicy` (nothing before 30 s, finished from 95 %). It embeds a Media3 `PlayerView` with `useController = false` inside `AndroidView`, and draws its **own** Compose control overlay (seek bar, play/pause, speed, track-selection dialog). Remote-control handling is described under "Android TV remote input" below.
 
 ### Phone vs TV layout
 `DeviceUtils.isTv(context)` (UiModeManager == TELEVISION) is the layout switch: TV renders `SidebarNavigation` (a `NavigationRail`) beside the content; phones render `BottomNavigationBar` in the `Scaffold`. Grid column count (`DeviceUtils.getGridColumns`) and default subtitle size also branch on it. For behaviour that depends on *how* the user navigates (remote vs touch/mouse), check `LocalInputModeManager.current.inputMode == InputMode.Keyboard` instead, as `SearchScreen` does. D-pad navigation relies on Compose's default 2D focus search over `clickable`s and Material controls; see the rules below before adding any focus code.
@@ -70,7 +70,12 @@ Detail screens do **not** receive objects via nav arguments. The list/search scr
 - ViewModels expose Compose `mutableStateOf` properties with `private set` and launch work in `viewModelScope`. Results are filtered through `LanguageUtils.shouldDisplayTitle` to hide items with Farsi titles.
 
 ### Persistence
-- `StorageUtils` (a singleton object) stores everything as kotlinx.serialization JSON files in `filesDir`: favorites and favorite groups, watched episodes, subtitle / video-player / font settings, and the cached detail items above. Classes in `data/model` are `@Serializable` and are kept by ProGuard (`-keep class com.pira.ccloud.data.model.**`); renaming their fields breaks data already stored on users' devices.
+- `StorageUtils` (a singleton object) is the storage API the screens call. Favorites, favorite groups (playlists), watched episodes, playback positions and the synced settings are **sync records**: it delegates them to `sync/LibraryStore`, which keeps them in `sync/RecordStore` (one `records_<collection>.json` per collection in `filesDir`). Every change gets a timestamp and the device's id, and deletions leave tombstones, so the records can later sync with other devices (the Apple app shares the format; see `SyncRecord` and `SyncKeys`). The built-in default group isn't stored: it always holds every favorite.
+- Synced settings are the font, the seek interval and the subtitle text/background colors (only the palette Settings offers, matched by `SettingsMapping`). Their files (`font_settings.json` etc.) still hold every field, including the ones that stay on the device (subtitle size); when loading, a sync record wins over the file. A setting at its default isn't stored as a record until the user changes it.
+- `sync/LegacyMigration` moved the pre-sync `favorites.json`, `favorite_groups.json` and `watched_episodes.json` into records once (marker file `sync_migrated_v2`) and renamed them to `*.v1.bak`.
+- `StorageUtils.changes(context, collection)` is a `StateFlow` that ticks on every change to a collection; screens that show favorites, watched marks or the font collect it so changes from sync appear without reopening them.
+- The detail-screen cache (`movie_<id>.json` / `series_<id>.json`) is still plain files.
+- Classes in `data/model` (including `data/model/sync`) are `@Serializable` and are kept by ProGuard (`-keep class com.pira.ccloud.data.model.**`); renaming their fields breaks data already stored on users' devices, and for `data/model/sync` also breaks sync with the Apple app.
 - Theme settings are the exception: `ThemeManager` uses SharedPreferences (`theme_prefs`).
 - Settings changes flow through callbacks, not shared state: `MainApp` holds theme/font state and passes `onThemeSettingsChanged`/`onFontSettingsChanged` down through `AppNavigation` to `SettingsScreen`. `VideoPlayerActivity` reads settings from `StorageUtils` directly when it starts.
 

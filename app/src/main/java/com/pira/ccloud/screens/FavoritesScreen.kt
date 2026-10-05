@@ -49,6 +49,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -77,6 +78,7 @@ import com.pira.ccloud.data.model.FavoriteGroup
 import com.pira.ccloud.data.model.FavoriteItem
 import com.pira.ccloud.navigation.AppScreens
 import com.pira.ccloud.utils.StorageUtils
+import com.pira.ccloud.sync.SyncCollection
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -91,11 +93,19 @@ fun FavoritesScreen(navController: NavController) {
     var showMoveToGroupDialog by remember { mutableStateOf(false) }
     var selectedItem by remember { mutableStateOf<FavoriteItem?>(null) }
     
-    // Load favorites and groups when screen is displayed
-    LaunchedEffect(Unit) {
-        favorites = StorageUtils.loadAllFavorites(context)
+    // Load favorites and groups when the screen is shown, and again whenever they change (also
+    // when the change comes from another device through sync)
+    val favoritesVersion by StorageUtils.changes(context, SyncCollection.FAVORITE).collectAsState()
+    val playlistsVersion by StorageUtils.changes(context, SyncCollection.PLAYLIST).collectAsState()
+    val playlistItemsVersion by StorageUtils.changes(context, SyncCollection.PLAYLIST_ITEM).collectAsState()
+    LaunchedEffect(favoritesVersion, playlistsVersion, playlistItemsVersion) {
         groups = StorageUtils.loadAllFavoriteGroups(context)
-        selectedGroup = groups.firstOrNull { it.isDefault } ?: groups.firstOrNull()
+        selectedGroup = groups.firstOrNull { it.id == selectedGroup?.id }
+            ?: groups.firstOrNull { it.isDefault }
+            ?: groups.firstOrNull()
+        favorites = selectedGroup?.takeUnless { it.isDefault }
+            ?.let { StorageUtils.getFavoritesInGroup(context, it.id) }
+            ?: StorageUtils.loadAllFavorites(context)
     }
     
     // Confirmation dialog for deleting all favorites

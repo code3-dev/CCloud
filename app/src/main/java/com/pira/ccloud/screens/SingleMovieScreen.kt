@@ -44,6 +44,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,8 +63,13 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
-import com.pira.ccloud.VideoPlayerActivity
 import com.pira.ccloud.components.DownloadOptionsDialog
+import com.pira.ccloud.components.PendingPlayback
+import com.pira.ccloud.components.ResumePlaybackDialog
+import com.pira.ccloud.components.playOrAskToResume
+import com.pira.ccloud.sync.SyncCollection
+import com.pira.ccloud.sync.SyncKeys
+import com.pira.ccloud.sync.TrailerMarkers
 import com.pira.ccloud.components.ExpandableText
 import com.pira.ccloud.components.focusRing
 import com.pira.ccloud.components.initialFocus
@@ -81,9 +87,15 @@ fun SingleMovieScreen(
 ) {
     var movie by remember { mutableStateOf<Movie?>(null) }
     val context = LocalContext.current
+    // A playback waiting for the resume / start over choice
+    var pendingPlayback by remember { mutableStateOf<PendingPlayback?>(null) }
     
     LaunchedEffect(movieId) {
         movie = StorageUtils.loadMovieFromFile(context, movieId)
+    }
+    
+    pendingPlayback?.let { pending ->
+        ResumePlaybackDialog(pending, onDone = { pendingPlayback = null })
     }
     
     // Directly render content without Scaffold since it's already in MainScreen's Scaffold
@@ -92,8 +104,10 @@ fun SingleMovieScreen(
             movie = movie!!,
             onBackClick = { navController.popBackStack() },
             onPlayClick = { source ->
-                // Launch video player activity
-                VideoPlayerActivity.start(context, source.url)
+                // Launch the player, first offering to resume a saved position. Trailers have
+                // no saved position.
+                val progressKey = if (TrailerMarkers.isTrailer(source)) null else SyncKeys.movieProgress(movieId)
+                pendingPlayback = playOrAskToResume(context, source.url, progressKey)
             },
             // Remove any padding from parent Scaffold to use full screen
             modifier = Modifier.fillMaxSize()
@@ -320,8 +334,9 @@ fun MovieDetailsContent(
             val context = LocalContext.current
             val movieId = movie.id
             
-            // Check if movie is already favorite
-            LaunchedEffect(movieId) {
+            // Check if movie is already favorite (again when favorites change, e.g. through sync)
+            val favoritesVersion by StorageUtils.changes(context, SyncCollection.FAVORITE).collectAsState()
+            LaunchedEffect(movieId, favoritesVersion) {
                 isFavorite = StorageUtils.isFavorite(context, movieId, "movie")
             }
             
