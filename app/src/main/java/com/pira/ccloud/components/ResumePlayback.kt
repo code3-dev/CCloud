@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.pira.ccloud.VideoPlayerActivity
 import com.pira.ccloud.sync.ProgressPolicy
+import com.pira.ccloud.sync.android.SyncService
 import com.pira.ccloud.utils.StorageUtils
 import kotlinx.coroutines.delay
 
@@ -47,13 +48,16 @@ data class PendingPlayback(
 /**
  * Starts playing [url], or returns a [PendingPlayback] when there's a saved position to offer
  * (show it with [ResumePlaybackDialog]). [progressKey] is null for trailers, which never resume.
+ *
+ * With sync on, it first fetches positions saved on other devices (waiting at most 1.5 s).
  */
-fun playOrAskToResume(
+suspend fun playOrAskToResume(
     context: Context,
     url: String,
     progressKey: String?,
     episode: EpisodeIds? = null
 ): PendingPlayback? {
+    if (progressKey != null) SyncService.engine(context)?.prepareToPlay()
     val resumeAt = progressKey
         ?.let { StorageUtils.loadPlaybackProgress(context, it) }
         ?.let { ProgressPolicy.resumePosition(it) }

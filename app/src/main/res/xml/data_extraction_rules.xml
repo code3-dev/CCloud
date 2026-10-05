@@ -1,19 +1,12 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
--->
+<?xml version="1.0" encoding="utf-8"?>
+<!-- See backup_rules.xml for why the sync device id and membership are left out. -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude domain="file" path="sync_device_id" />
+        <exclude domain="file" path="sync_state.bin" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="file" path="sync_device_id" />
+        <exclude domain="file" path="sync_state.bin" />
     </device-transfer>
-    -->
 </data-extraction-rules>

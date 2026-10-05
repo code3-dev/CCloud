@@ -1,7 +1,9 @@
 package com.pira.ccloud.sync
 
 import com.pira.ccloud.data.model.sync.SyncRecord
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonObject
@@ -25,8 +27,13 @@ class RecordStore(
     private val versions = SyncCollection.all.associateWith { MutableStateFlow(0) }
     private val serializer = ListSerializer(SyncRecord.serializer())
 
+    private val localEditsFlow = MutableSharedFlow<String>(extraBufferCapacity = 64)
+
     /** Increases after every change to [collection], local or remote. */
     fun changes(collection: String): StateFlow<Int> = versions.getValue(collection)
+
+    /** The collection of every change made on this device (not by [applyRemote]). */
+    val localEdits: SharedFlow<String> = localEditsFlow
 
     fun now(): Long = clock()
 
@@ -57,7 +64,43 @@ class RecordStore(
         val editor = Editor()
         val result = editor.block()
         commit(editor.touched)
+        editor.touched.forEach { localEditsFlow.tryEmit(it) }
         result
+    }
+
+    /** Records changed here and not yet uploaded, oldest change first. */
+    fun dirtyRecords(): List<SyncRecord> = synchronized(lock) {
+        SyncCollection.all.flatMap { load(it).values.filter { record -> record.dirty } }.sortedBy { it.t }
+    }
+
+    /**
+     * Marks [uploaded] records clean, unless they changed again since they were read (then the
+     * newer change still needs uploading).
+     */
+    fun markClean(uploaded: List<SyncRecord>) = synchronized(lock) {
+        val touched = HashSet<String>()
+        for (record in uploaded) {
+            val records = load(record.c)
+            val current = records[record.k] ?: continue
+            if (current.dirty && current.t == record.t && current.dev == record.dev) {
+                records[record.k] = current.copy(dirty = false)
+                touched += record.c
+            }
+        }
+        touched.forEach { write(it) }
+    }
+
+    /**
+     * Marks every record dirty, so the next sync uploads the whole library: after joining a group,
+     * this device's data is merged with the group's (nothing on either side is lost).
+     */
+    fun markAllDirty() = synchronized(lock) {
+        for (collection in SyncCollection.all) {
+            val records = load(collection)
+            if (records.values.all { it.dirty }) continue
+            records.replaceAll { _, record -> record.copy(dirty = true) }
+            write(collection)
+        }
     }
 
     /**

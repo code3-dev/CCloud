@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.pira.ccloud.R
@@ -82,6 +83,15 @@ sealed class AppScreens(
     data object Country : AppScreens(
         route = "country/{countryId}",
         resourceId = R.string.country,
+        showBottomBar = false,
+        showSidebar = false
+    )
+
+    // Settings → Sync; "code" comes from a scanned ccloud://pair link
+    data object Sync : AppScreens(
+        route = "sync?code={code}",
+        resourceId = R.string.sync,
+        icon = Icons.Default.Sync,
         showBottomBar = false,
         showSidebar = false
     )

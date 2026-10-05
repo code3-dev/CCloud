@@ -1,5 +1,6 @@
 package com.pira.ccloud
 
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.os.Build
 import android.os.Bundle
@@ -53,10 +54,16 @@ import com.pira.ccloud.utils.StorageUtils
 import com.pira.ccloud.sync.SyncCollection
 import com.pira.ccloud.data.model.FontSettings
 import com.pira.ccloud.utils.DeviceUtils
+import com.pira.ccloud.sync.android.SyncService
+import com.pira.ccloud.sync.transport.PairingCodes
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Not again after a rotation or process restore: the link was handled then
+        if (savedInstanceState == null) PairingLinks.receive(intent)
         // Set default orientation to portrait for mobile/tablet
         // For TV, we don't set orientation as it's typically fixed
         if (!DeviceUtils.isTv(this)) {
@@ -71,6 +78,27 @@ class MainActivity : ComponentActivity() {
         setContent {
             MainApp()
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        PairingLinks.receive(intent)
+    }
+}
+
+/** Sync codes from `ccloud://pair?code=` links (a QR code scanned with the camera app). */
+object PairingLinks {
+    private val _pending = MutableStateFlow<String?>(null)
+    val pending: StateFlow<String?> = _pending
+
+    fun receive(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW || !SyncService.isAvailable) return
+        val link = intent.dataString ?: return
+        PairingCodes.normalize(link)?.let { _pending.value = it }
+    }
+
+    fun consume() {
+        _pending.value = null
     }
 }
 
@@ -123,9 +151,19 @@ fun MainScreen(
         currentRoute?.startsWith("country") == true -> AppScreens.Country
         currentRoute == "favorites" -> AppScreens.Favorites
         currentRoute == "about" -> AppScreens.About
+        currentRoute?.startsWith("sync") == true -> AppScreens.Sync
         else -> AppScreens.screens.find { it.route == currentRoute } ?: AppScreens.Movies
     }
     
+    // Open Sync with a code from a link, once the splash has gone
+    val pairingCode by PairingLinks.pending.collectAsState()
+    LaunchedEffect(pairingCode, currentRoute) {
+        val code = pairingCode ?: return@LaunchedEffect
+        if (currentRoute == null || currentRoute == AppScreens.Splash.route) return@LaunchedEffect
+        PairingLinks.consume()
+        navController.navigate("sync?code=$code") { launchSingleTop = true }
+    }
+
     // System UI controller for edge-to-edge support
     val systemUiController = rememberSystemUiController()
     val useDarkIcons = themeSettings.themeMode != com.pira.ccloud.ui.theme.ThemeMode.DARK
