@@ -1,0 +1,26 @@
+{
+  "textColors": [
+    { "argb": "FFFFFF00", "name": "yellow" },
+    { "argb": "FFFFFFFF", "name": "white" },
+    { "argb": "FF000000", "name": "black" },
+    { "argb": "FFFF0000", "name": "red" },
+    { "argb": "FF0000FF", "name": "blue" },
+    { "argb": "FF00FF00", "name": "green" }
+  ],
+  "unmappedTextColors": ["FF123456", "FFFF8800"],
+  "backgrounds": [
+    { "argb": "00000000", "name": "none" },
+    { "argb": "80000000", "name": "glass" },
+    { "argb": "FFFFFFFF", "name": "white" },
+    { "argb": "FF000000", "name": "black" },
+    { "argb": "FFFF0000", "name": "red" },
+    { "argb": "FF0000FF", "name": "blue" },
+    { "argb": "FF00FF00", "name": "green" }
+  ],
+  "unmappedBackgrounds": ["80FF0000", "FF123456"],
+  "fonts": [
+    { "android": "DEFAULT", "name": "system" },
+    { "android": "VAZIRMATN", "name": "vazirmatn" }
+  ],
+  "seekIntervals": { "valid": [5, 10, 30], "invalid": [0, 4, 31, -10] }
+}

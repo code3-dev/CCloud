@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +50,7 @@ import com.pira.ccloud.ui.theme.CCloudTheme
 import com.pira.ccloud.ui.theme.ThemeManager
 import com.pira.ccloud.ui.theme.ThemeSettings
 import com.pira.ccloud.utils.StorageUtils
+import com.pira.ccloud.sync.SyncCollection
 import com.pira.ccloud.data.model.FontSettings
 import com.pira.ccloud.utils.DeviceUtils
 
@@ -78,6 +80,11 @@ fun MainApp() {
     var themeSettings by remember { mutableStateOf(themeManager.loadThemeSettings()) }
     val context = androidx.compose.ui.platform.LocalContext.current
     var fontSettings by remember { mutableStateOf(StorageUtils.loadFontSettings(context)) }
+    // The font is a synced setting, so it can also change on another device
+    val syncedSettingsVersion by StorageUtils.changes(context, SyncCollection.SETTING).collectAsState()
+    LaunchedEffect(syncedSettingsVersion) {
+        fontSettings = StorageUtils.loadFontSettings(context)
+    }
     
     // Save theme settings when they change
     LaunchedEffect(themeSettings) {
