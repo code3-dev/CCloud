@@ -13,6 +13,8 @@ import com.pira.ccloud.sync.SyncEngine
 import com.pira.ccloud.sync.SyncLibrary
 import com.pira.ccloud.sync.transport.DeviceInfo
 import com.pira.ccloud.sync.transport.FakeSyncTransport
+import com.pira.ccloud.sync.transport.HttpSyncTransport
+import com.pira.ccloud.sync.transport.SyncTransport
 import com.pira.ccloud.utils.DeviceUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,10 +24,12 @@ import kotlinx.coroutines.SupervisorJob
 /**
  * The app's [SyncEngine], wired to the process lifecycle (foreground / background) and to network
  * changes. Null while sync is hidden ([BuildConfig.SYNC_ENABLED] is off in release builds until
- * the sync server exists).
+ * the sync server is live).
  *
- * Until then it talks to an in-memory [FakeSyncTransport], so groups disappear when the app
- * restarts; a stored membership then fails and turns sync off, keeping the local data.
+ * It talks to the servers in [BuildConfig.SYNC_SERVERS] (base URLs ending in `/v1`, separated by
+ * commas, tried in order). With none, debug builds use an in-memory [FakeSyncTransport], so groups
+ * disappear when the app restarts; a stored membership then fails and turns sync off, keeping the
+ * local data.
  */
 object SyncService {
     @Volatile
@@ -45,7 +49,7 @@ object SyncService {
     private fun create(context: Context): SyncEngine {
         val engine = SyncEngine(
             records = SyncLibrary.get(context).records,
-            transport = FakeSyncTransport(simulatePeer = true),
+            transport = transport(),
             stateStore = EncryptedSyncStateStore(context.filesDir),
             device = DeviceInfo(deviceName(context), if (DeviceUtils.isTv(context)) "android-tv" else "android"),
             // One coroutine at a time, as the engine requires; file and network work stays off
@@ -65,6 +69,11 @@ object SyncService {
             override fun onAvailable(network: Network) = engine.onConnectivityRegained()
         })
         return engine
+    }
+
+    private fun transport(): SyncTransport {
+        val servers = BuildConfig.SYNC_SERVERS.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+        return if (servers.isEmpty()) FakeSyncTransport(simulatePeer = true) else HttpSyncTransport(servers)
     }
 
     /** "Living room TV" when the user named the device, else the model. */
