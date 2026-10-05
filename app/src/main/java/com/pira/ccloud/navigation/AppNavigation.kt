@@ -19,6 +19,7 @@ import com.pira.ccloud.screens.SingleSeriesScreen
 import com.pira.ccloud.screens.SplashScreen
 import com.pira.ccloud.screens.FavoritesScreen
 import com.pira.ccloud.screens.CountryScreen
+import com.pira.ccloud.ui.sync.SyncScreen
 import com.pira.ccloud.ui.movies.MoviesViewModel
 import com.pira.ccloud.ui.search.SearchViewModel
 import com.pira.ccloud.ui.series.SeriesViewModel
@@ -97,6 +98,13 @@ fun AppNavigation(
         }
         composable(route = AppScreens.About.route) {
             ScreenFocus { AboutScreen(navController) }
+        }
+        composable(
+            route = AppScreens.Sync.route,
+            arguments = listOf(navArgument("code") { nullable = true; defaultValue = null })
+        ) { backStackEntry ->
+            val code = backStackEntry.arguments?.getString("code")
+            ScreenFocus { SyncScreen(navController = navController, initialCode = code) }
         }
         composable(
             route = AppScreens.SingleMovie.route,

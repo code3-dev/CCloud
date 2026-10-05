@@ -67,10 +67,14 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Sync stays hidden until the sync server exists (SyncService)
+            buildConfigField("boolean", "SYNC_ENABLED", "false")
         }
         
         debug {
             isDebuggable = true
+            // Debug builds sync through an in-memory stand-in for the server (FakeSyncTransport)
+            buildConfigField("boolean", "SYNC_ENABLED", "true")
         }
     }
     
@@ -151,12 +155,22 @@ dependencies {
     
     // ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+
+    // Sync: app foreground/background, and QR codes (ZXing draws and reads them; CameraX feeds
+    // the scanner). ZXing rather than ML Kit, which needs Google Play services.
+    implementation("androidx.lifecycle:lifecycle-process:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("com.google.zxing:core:3.5.3")
+    implementation("androidx.camera:camera-camera2:1.4.1")
+    implementation("androidx.camera:camera-lifecycle:1.4.1")
+    implementation("androidx.camera:camera-view:1.4.1")
     
     // Leanback for TV support
     implementation(libs.androidx.leanback)
     implementation(libs.androidx.leanback.preference)
     
     testImplementation(libs.junit)
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

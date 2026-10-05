@@ -48,6 +48,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -89,6 +91,7 @@ fun SingleMovieScreen(
     val context = LocalContext.current
     // A playback waiting for the resume / start over choice
     var pendingPlayback by remember { mutableStateOf<PendingPlayback?>(null) }
+    val scope = rememberCoroutineScope()
     
     LaunchedEffect(movieId) {
         movie = StorageUtils.loadMovieFromFile(context, movieId)
@@ -107,7 +110,7 @@ fun SingleMovieScreen(
                 // Launch the player, first offering to resume a saved position. Trailers have
                 // no saved position.
                 val progressKey = if (TrailerMarkers.isTrailer(source)) null else SyncKeys.movieProgress(movieId)
-                pendingPlayback = playOrAskToResume(context, source.url, progressKey)
+                scope.launch { pendingPlayback = playOrAskToResume(context, source.url, progressKey) }
             },
             // Remove any padding from parent Scaffold to use full screen
             modifier = Modifier.fillMaxSize()

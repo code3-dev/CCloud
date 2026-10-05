@@ -22,11 +22,11 @@ CCloud is a single-module (`:app`) Android streaming client (movies / TV series)
 
 ### Tests
 
-JVM unit tests live in `app/src/test` (the sync storage in `com.pira.ccloud.sync`); there are no instrumented tests yet. `./gradlew testDebugUnitTest` runs them, `./gradlew testDebugUnitTest --tests "com.pira.ccloud.sync.LibraryStoreTest"` runs one class, and `./gradlew connectedDebugAndroidTest` would run instrumented tests. `app/src/test/resources/sync-fixtures/` holds cases shared with the Apple app (merge rule, settings mapping); keep both apps passing the same fixtures.
+JVM unit tests live in `app/src/test` (the sync storage and engine in `com.pira.ccloud.sync`); there are no instrumented tests yet. `./gradlew testDebugUnitTest` runs them, `./gradlew testDebugUnitTest --tests "com.pira.ccloud.sync.LibraryStoreTest"` runs one class, and `./gradlew connectedDebugAndroidTest` would run instrumented tests. `app/src/test/resources/sync-fixtures/` holds cases shared with the Apple app (merge rule, settings mapping); keep both apps passing the same fixtures.
 
 ## Architecture
 
-The README's architecture section overstates things: there is no domain layer, no LiveData, no DI (the only Flow is the sync storage's change counter, see Persistence), and the Leanback library is a dependency but the TV UI is pure Compose. What actually exists:
+The README's architecture section overstates things: there is no domain layer, no LiveData, no DI (Flows appear only in the sync code, see Persistence and Sync), and the Leanback library is a dependency but the TV UI is pure Compose. What actually exists:
 
 ### Two activities
 - `MainActivity` hosts the whole Compose app (`MainApp` → `MainScreen` → `AppNavigation`).
@@ -78,6 +78,16 @@ Detail screens do **not** receive objects via nav arguments. The list/search scr
 - Classes in `data/model` (including `data/model/sync`) are `@Serializable` and are kept by ProGuard (`-keep class com.pira.ccloud.data.model.**`); renaming their fields breaks data already stored on users' devices, and for `data/model/sync` also breaks sync with the Apple app.
 - Theme settings are the exception: `ThemeManager` uses SharedPreferences (`theme_prefs`).
 - Settings changes flow through callbacks, not shared state: `MainApp` holds theme/font state and passes `onThemeSettingsChanged`/`onFontSettingsChanged` down through `AppNavigation` to `SettingsScreen`. `VideoPlayerActivity` reads settings from `StorageUtils` directly when it starts.
+
+### Sync between devices
+- `sync/SyncEngine` keeps the records in sync with the user's other devices (Android and the Apple app) through a `sync/transport/SyncTransport`. There are no accounts: devices form a group by pairing with an 8-character code (`PairingCodes`, shown as `XXXX-XXXX` and as a `ccloud://pair?code=` QR code, 5 minutes, single use). Pairing works both ways: a new device shows a join request that a member approves (`PairingKind.REQUEST`), or a member shows an invite that the new device uses (`INVITE`); TVs have no camera, so the code can always be typed.
+- **Hidden in release builds.** `BuildConfig.SYNC_ENABLED` is true only in debug builds, which talk to `FakeSyncTransport`, an in-memory stand-in for the server (a join request is approved by a simulated phone after 3 s; groups vanish when the app restarts, and the stored membership then fails and turns sync off). The camera permission and the `ccloud://pair` link live in `src/debug/AndroidManifest.xml`. Move them to `src/main` when the real server exists.
+- `sync/android/SyncService` creates the one engine and connects it to the app's foreground/background (`ProcessLifecycleOwner`) and to network changes. The engine runs on a single-threaded scope; its public functions hand their work to it, so call them from anywhere.
+- Timing: favorites, playlists and watched marks are sent 3 s after a change, settings after 10 s, playback positions when the player pauses or closes and every 5 min while playing. It pulls at start, on returning to the foreground, every 15 min in the foreground (not while playing), and before playback (`prepareToPlay`, at most 1.5 s, so a position saved on another device can be offered). Failures retry with backoff (5 s up to 15 min), and at once when the network comes back. A rejected membership (`Unauthorized`) turns sync off and keeps the local data.
+- A sync that was in flight when the device left or switched groups must not save its result: `runSync` checks `isStillMember` after every call. Keep that check in any new path that saves `SyncState`.
+- The membership (`SyncState`: credentials and cursor) is encrypted with a Keystore key in `sync_state.bin`. It and `sync_device_id` are excluded from backups (`res/xml/backup_rules.xml`, `data_extraction_rules.xml`): a restored copy would give two devices the same id.
+- The UI is `ui/sync/SyncScreen` (route `sync?code=`, opened from a Settings card shown only when sync is available): QR codes are drawn and read with ZXing (`QrCode`, `QrScanner` with CameraX), not ML Kit, which needs Google Play services.
+- `SyncEngineTest` runs two or more engines against one `FakeSyncTransport` with virtual time; `syncLatencyMs` delays responses to overlap calls.
 
 ### Fonts
 The optional Vazirmatn font exists twice: `res/font` (used by `FontManager` for Compose text) and `assets/font` (used by the player via `Typeface.createFromAsset` for subtitle styling). Keep both in sync.

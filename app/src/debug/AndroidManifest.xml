@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sync's manifest entries, merged into debug builds only: release builds hide sync
+     (BuildConfig.SYNC_ENABLED) until the sync server exists. Move them to src/main then. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Scanning another device's sync code; asked only when the user chooses to scan -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- The CAMERA permission would otherwise make stores require a camera (TVs have none);
+         without one, codes are typed -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.any"
+        android:required="false" />
+
+    <application>
+        <!-- singleTop: a link opened while the app is showing reaches onNewIntent instead of
+             stacking a second copy of the app -->
+        <activity
+            android:name=".MainActivity"
+            android:launchMode="singleTop">
+            <!-- A sync code scanned with the system camera app: ccloud://pair?code=XXXXXXXX -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="ccloud" android:host="pair" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

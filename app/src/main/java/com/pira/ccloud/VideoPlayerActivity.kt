@@ -105,6 +105,7 @@ import com.pira.ccloud.data.model.FontSettings
 import com.pira.ccloud.data.model.WatchedEpisode
 import com.pira.ccloud.utils.StorageUtils
 import com.pira.ccloud.sync.ProgressPolicy
+import com.pira.ccloud.sync.android.SyncService
 import com.pira.ccloud.ui.theme.FontManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -229,6 +230,8 @@ class VideoPlayerActivity : ComponentActivity() {
         episodeId = intent.getIntExtra(EXTRA_EPISODE_ID, -1).takeIf { it != -1 }
         progressKey = intent.getStringExtra(EXTRA_PROGRESS_KEY)
         startPositionMs = intent.getLongExtra(EXTRA_START_POSITION_MS, 0L).coerceAtLeast(0L)
+        // Sync doesn't poll during playback
+        SyncService.engine(this)?.setPlaying(true)
         
         if (videoUrl != null) {
             setContent {
@@ -301,6 +304,7 @@ class VideoPlayerActivity : ComponentActivity() {
     
     override fun onDestroy() {
         super.onDestroy()
+        SyncService.engine(this)?.setPlaying(false)
         try {
             exoPlayer?.release()
         } catch (e: Exception) {
@@ -346,6 +350,8 @@ class VideoPlayerActivity : ComponentActivity() {
         try {
             if (playerInitialized && exoPlayer != null) {
                 savePlaybackPosition(this, progressKey, exoPlayer)
+                // Push the position soon, so another device can continue from here
+                if (progressKey != null) SyncService.engine(this)?.pushProgressSoon()
                 exoPlayer?.playWhenReady = false
                 // Note: currentPosition is managed in the Composable scope
                 // Player will remain paused until user manually starts it
@@ -549,6 +555,8 @@ fun VideoPlayerScreen(
         if (exoPlayer == null) return@LaunchedEffect
         if (!isPlaying) {
             savePlaybackPosition(context, progressKey, exoPlayer)
+            // Paused or ended: push the position soon, so another device can continue from here
+            if (progressKey != null) SyncService.engine(context)?.pushProgressSoon()
             return@LaunchedEffect
         }
         while (true) {

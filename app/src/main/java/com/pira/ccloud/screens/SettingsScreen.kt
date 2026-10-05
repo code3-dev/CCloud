@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.FormatColorFill
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -82,6 +83,7 @@ import com.pira.ccloud.ui.theme.ThemeManager
 import com.pira.ccloud.ui.theme.colorOptions
 import com.pira.ccloud.ui.theme.defaultPrimaryColor
 import com.pira.ccloud.utils.StorageUtils
+import com.pira.ccloud.sync.android.SyncService
 import androidx.compose.foundation.layout.Arrangement.SpaceBetween
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -788,6 +790,49 @@ fun SettingsScreen(
             }
         }
         
+        // Sync Card (debug builds until the sync server exists)
+        if (SyncService.isAvailable) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .restorableFocus("sync")
+                        .focusRing(CardDefaults.shape)
+                        .clickable { navController?.navigate("sync") },
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Sync,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Text(
+                                text = "Sync across devices",
+                                style = MaterialTheme.typography.titleLarge,
+                                modifier = Modifier
+                                    .padding(start = 8.dp)
+                                    .weight(1f)
+                            )
+                        }
+                        Text(
+                            text = "Favorites, playlists, watched episodes and where you stopped, on your phones and TVs",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            item { Spacer(modifier = Modifier.height(16.dp)) }
+        }
+
         // About Card
         item {
             AnimatedVisibility(

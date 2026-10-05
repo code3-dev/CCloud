@@ -50,6 +50,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -107,6 +109,7 @@ fun SingleSeriesScreen(
     var selectedSeasonIndex by remember { mutableStateOf(0) }
     // A playback waiting for the resume / start over choice
     var pendingPlayback by remember { mutableStateOf<PendingPlayback?>(null) }
+    val scope = rememberCoroutineScope()
     
     // Plays an episode, first offering to resume a saved position. Trailers have no saved position.
     fun playEpisode(episode: Episode, source: Source, season: Season) {
@@ -116,7 +119,7 @@ fun SingleSeriesScreen(
         } else {
             SyncKeys.episodeProgress(ids.seriesId, ids.seasonId, ids.episodeId)
         }
-        pendingPlayback = playOrAskToResume(context, source.url, progressKey, ids)
+        scope.launch { pendingPlayback = playOrAskToResume(context, source.url, progressKey, ids) }
     }
     
     pendingPlayback?.let { pending ->

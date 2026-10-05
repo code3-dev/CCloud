@@ -10,6 +10,9 @@ object SyncLibrary {
     @Volatile
     private var instance: LibraryStore? = null
 
+    /** The server's clock minus this device's, kept current by sync; local changes use it. */
+    val clockOffset = ClockOffset()
+
     fun get(context: Context): LibraryStore =
         instance ?: synchronized(this) {
             instance ?: create(context.applicationContext).also { instance = it }
@@ -17,7 +20,9 @@ object SyncLibrary {
 
     private fun create(context: Context): LibraryStore {
         val directory = context.filesDir
-        val records = RecordStore(directory, DeviceIdentity.load(directory))
+        val records = RecordStore(directory, DeviceIdentity.load(directory)) {
+            System.currentTimeMillis() + clockOffset.offsetMs
+        }
         try {
             LegacyMigration(directory, records).runIfNeeded()
         } catch (e: Exception) {
