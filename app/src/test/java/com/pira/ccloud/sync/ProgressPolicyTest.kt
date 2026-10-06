@@ -31,13 +31,6 @@ class ProgressPolicyTest {
     }
 
     @Test
-    fun format() {
-        assertEquals("0:45", ProgressPolicy.format(45_000))
-        assertEquals("42:10", ProgressPolicy.format(2_530_000))
-        assertEquals("1:02:03", ProgressPolicy.format(3_723_000))
-    }
-
-    @Test
     fun trailers() {
         val trailer = Source(1, "تیزر", "mp4", "u")
         val film = Source(2, "1080p", "mkv", "u")

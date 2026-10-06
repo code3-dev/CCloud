@@ -71,9 +71,7 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.pira.ccloud.components.DownloadOptionsDialog
 import com.pira.ccloud.components.EpisodeIds
-import com.pira.ccloud.components.PendingPlayback
-import com.pira.ccloud.components.ResumePlaybackDialog
-import com.pira.ccloud.components.playOrAskToResume
+import com.pira.ccloud.components.playFromSavedPosition
 import com.pira.ccloud.sync.SyncCollection
 import com.pira.ccloud.sync.SyncKeys
 import com.pira.ccloud.sync.TrailerMarkers
@@ -107,11 +105,9 @@ fun SingleSeriesScreen(
     // The season whose episodes are listed, and so the one an episode is played (and marked as
     // watched) in
     var selectedSeasonIndex by remember { mutableStateOf(0) }
-    // A playback waiting for the resume / start over choice
-    var pendingPlayback by remember { mutableStateOf<PendingPlayback?>(null) }
     val scope = rememberCoroutineScope()
     
-    // Plays an episode, first offering to resume a saved position. Trailers have no saved position.
+    // Plays an episode from its saved position. Trailers have no saved position.
     fun playEpisode(episode: Episode, source: Source, season: Season) {
         val ids = EpisodeIds(seriesId, season.id, episode.id)
         val progressKey = if (TrailerMarkers.isTrailer(episode) || TrailerMarkers.isTrailer(source)) {
@@ -119,11 +115,7 @@ fun SingleSeriesScreen(
         } else {
             SyncKeys.episodeProgress(ids.seriesId, ids.seasonId, ids.episodeId)
         }
-        scope.launch { pendingPlayback = playOrAskToResume(context, source.url, progressKey, ids) }
-    }
-    
-    pendingPlayback?.let { pending ->
-        ResumePlaybackDialog(pending, onDone = { pendingPlayback = null })
+        scope.launch { playFromSavedPosition(context, source.url, progressKey, ids) }
     }
     
     LaunchedEffect(seriesId) {
