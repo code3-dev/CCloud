@@ -97,6 +97,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
+import com.pira.ccloud.components.EpisodeIds
 import com.pira.ccloud.components.focusOutline
 import com.pira.ccloud.components.focusRing
 import com.pira.ccloud.data.model.SubtitleSettings
@@ -143,13 +144,22 @@ fun PlayerView.setSubtitleColors(settings: SubtitleSettings, typeface: Typeface?
 
 /**
  * Saves the player's position under [progressKey] (see ProgressPolicy for when it's kept). Does
- * nothing for trailers, which have no key.
+ * nothing for trailers, which have no key. An [episode] watched to the end
+ * (ProgressPolicy.COMPLETED_FRACTION) gets its watched mark.
  */
-fun savePlaybackPosition(context: Context, progressKey: String?, player: ExoPlayer?) {
+fun savePlaybackPosition(context: Context, progressKey: String?, player: ExoPlayer?, episode: EpisodeIds? = null) {
     if (progressKey == null || player == null) return
     try {
         val duration = player.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0L
-        StorageUtils.savePlaybackProgress(context, progressKey, player.currentPosition, duration)
+        val saved = StorageUtils.savePlaybackProgress(context, progressKey, player.currentPosition, duration)
+        if (saved?.completed == true && episode != null &&
+            !StorageUtils.isEpisodeWatched(context, episode.seriesId, episode.seasonId, episode.episodeId)
+        ) {
+            StorageUtils.saveWatchedEpisode(
+                context,
+                WatchedEpisode(seriesId = episode.seriesId, seasonId = episode.seasonId, episodeId = episode.episodeId)
+            )
+        }
     } catch (e: Exception) {
         // Never let saving the position disturb playback
     }
@@ -208,7 +218,6 @@ class VideoPlayerActivity : ComponentActivity() {
     private var startPositionMs = 0L
     private var playerInitialized = false
     private var isActivityResumed = false
-    private var hasMarkedAsWatched = false
     // Remote-control key handler registered by VideoPlayerScreen, which owns the controls state
     private var playerKeyHandler: ((KeyEvent) -> Boolean)? = null
     
@@ -342,6 +351,14 @@ class VideoPlayerActivity : ComponentActivity() {
         }
     }
     
+    /** The episode playing, if any. */
+    private fun episodeIds(): EpisodeIds? {
+        val series = seriesId ?: return null
+        val season = seasonId ?: return null
+        val episode = episodeId ?: return null
+        return EpisodeIds(series, season, episode)
+    }
+
     override fun onPause() {
         super.onPause()
         isActivityResumed = false
@@ -349,7 +366,7 @@ class VideoPlayerActivity : ComponentActivity() {
         // Stop player completely when activity pauses (app switch or screen off)
         try {
             if (playerInitialized && exoPlayer != null) {
-                savePlaybackPosition(this, progressKey, exoPlayer)
+                savePlaybackPosition(this, progressKey, exoPlayer, episodeIds())
                 // Push the position soon, so another device can continue from here
                 if (progressKey != null) SyncService.engine(this)?.pushProgressSoon()
                 exoPlayer?.playWhenReady = false
@@ -388,7 +405,10 @@ fun VideoPlayerScreen(
     var playbackSpeed by remember { mutableStateOf(1.0f) }
     var showSpeedDropdown by remember { mutableStateOf(false) }
     var playerInitialized by remember { mutableStateOf(false) }
-    var hasMarkedAsWatched by remember { mutableStateOf(false) }
+    // The episode playing, if any, to mark watched when it reaches the end
+    val episode = remember(seriesId, seasonId, episodeId) {
+        if (seriesId != null && seasonId != null && episodeId != null) EpisodeIds(seriesId, seasonId, episodeId) else null
+    }
     
     // Track selection state
     var showTrackSelectionDialog by remember { mutableStateOf(false) }
@@ -526,25 +546,11 @@ fun VideoPlayerScreen(
         }
     }
     
-    // Update player state and mark episode as watched
+    // Update player state. An episode is marked watched once it reaches the end, when its
+    // position is saved (see savePlaybackPosition)
     LaunchedEffect(isPlaying, exoPlayer) {
         try {
             exoPlayer?.playWhenReady = isPlaying
-            
-            // Mark episode as watched when playback starts (only once)
-            if (isPlaying && !hasMarkedAsWatched && seriesId != null && seasonId != null && episodeId != null) {
-                try {
-                    val watchedEpisode = WatchedEpisode(
-                        seriesId = seriesId!!,
-                        seasonId = seasonId!!,
-                        episodeId = episodeId!!
-                    )
-                    StorageUtils.saveWatchedEpisode(context, watchedEpisode)
-                    hasMarkedAsWatched = true
-                } catch (e: Exception) {
-                    // Ignore storage errors
-                }
-            }
         } catch (e: Exception) {
             // Ignore player state errors
         }
@@ -554,14 +560,14 @@ fun VideoPlayerScreen(
     LaunchedEffect(exoPlayer, isPlaying) {
         if (exoPlayer == null) return@LaunchedEffect
         if (!isPlaying) {
-            savePlaybackPosition(context, progressKey, exoPlayer)
+            savePlaybackPosition(context, progressKey, exoPlayer, episode)
             // Paused or ended: push the position soon, so another device can continue from here
             if (progressKey != null) SyncService.engine(context)?.pushProgressSoon()
             return@LaunchedEffect
         }
         while (true) {
             delay(ProgressPolicy.SAVE_INTERVAL_MS)
-            if (exoPlayer.isPlaying) savePlaybackPosition(context, progressKey, exoPlayer)
+            if (exoPlayer.isPlaying) savePlaybackPosition(context, progressKey, exoPlayer, episode)
         }
     }
     
@@ -596,7 +602,7 @@ fun VideoPlayerScreen(
                         }
                     } else if (playbackState == Player.STATE_ENDED) {
                         // Video ended, pause the player (and save it as finished)
-                        savePlaybackPosition(context, progressKey, exoPlayer)
+                        savePlaybackPosition(context, progressKey, exoPlayer, episode)
                         isPlaying = false
                     }
                 } catch (e: Exception) {
@@ -614,7 +620,7 @@ fun VideoPlayerScreen(
                         currentPosition = exoPlayer?.currentPosition ?: 0L
                     }
                     if (reason == Player.DISCONTINUITY_REASON_SEEK) {
-                        savePlaybackPosition(context, progressKey, exoPlayer)
+                        savePlaybackPosition(context, progressKey, exoPlayer, episode)
                     }
                 } catch (e: Exception) {
                     // Ignore position errors

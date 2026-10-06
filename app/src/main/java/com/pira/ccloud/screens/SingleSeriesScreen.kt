@@ -71,12 +71,13 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.pira.ccloud.components.DownloadOptionsDialog
 import com.pira.ccloud.components.EpisodeIds
-import com.pira.ccloud.components.PendingPlayback
-import com.pira.ccloud.components.ResumePlaybackDialog
-import com.pira.ccloud.components.playOrAskToResume
+import com.pira.ccloud.components.playFromSavedPosition
+import com.pira.ccloud.components.watchStatusText
+import com.pira.ccloud.sync.ProgressPolicy
 import com.pira.ccloud.sync.SyncCollection
 import com.pira.ccloud.sync.SyncKeys
 import com.pira.ccloud.sync.TrailerMarkers
+import com.pira.ccloud.sync.WatchStatus
 import com.pira.ccloud.components.ExpandableText
 import com.pira.ccloud.components.focusRing
 import com.pira.ccloud.components.initialFocus
@@ -107,11 +108,9 @@ fun SingleSeriesScreen(
     // The season whose episodes are listed, and so the one an episode is played (and marked as
     // watched) in
     var selectedSeasonIndex by remember { mutableStateOf(0) }
-    // A playback waiting for the resume / start over choice
-    var pendingPlayback by remember { mutableStateOf<PendingPlayback?>(null) }
     val scope = rememberCoroutineScope()
     
-    // Plays an episode, first offering to resume a saved position. Trailers have no saved position.
+    // Plays an episode from its saved position. Trailers have no saved position.
     fun playEpisode(episode: Episode, source: Source, season: Season) {
         val ids = EpisodeIds(seriesId, season.id, episode.id)
         val progressKey = if (TrailerMarkers.isTrailer(episode) || TrailerMarkers.isTrailer(source)) {
@@ -119,11 +118,7 @@ fun SingleSeriesScreen(
         } else {
             SyncKeys.episodeProgress(ids.seriesId, ids.seasonId, ids.episodeId)
         }
-        scope.launch { pendingPlayback = playOrAskToResume(context, source.url, progressKey, ids) }
-    }
-    
-    pendingPlayback?.let { pending ->
-        ResumePlaybackDialog(pending, onDone = { pendingPlayback = null })
+        scope.launch { playFromSavedPosition(context, source.url, progressKey, ids) }
     }
     
     LaunchedEffect(seriesId) {
@@ -427,8 +422,8 @@ fun SeriesDetailsContent(
     val layoutDirection = LocalLayoutDirection.current
     var showEpisodeImageDialog by remember { mutableStateOf(false) }
     var episodeImageUrl by remember { mutableStateOf("") }
-    // The player marks episodes as watched, so read the marks again when coming back from it, and
-    // when they change through sync
+    // The player saves positions and marks episodes as watched, so read them again when coming
+    // back from it, and when they change through sync
     var watchedMarksVersion by remember { mutableIntStateOf(0) }
     val syncedWatchedVersion by StorageUtils.changes(context, SyncCollection.WATCHED).collectAsState()
     LifecycleResumeEffect(Unit) {
@@ -847,12 +842,20 @@ fun SeriesDetailsContent(
                 )
                 
                 selectedSeason.episodes.forEachIndexed { index, episode ->
-                    val isEpisodeWatched = remember(watchedMarksVersion, syncedWatchedVersion, selectedSeason.id, episode.id) {
-                        StorageUtils.isEpisodeWatched(context, series.id, selectedSeason.id, episode.id)
+                    // "Watched" from the episode's mark (set at the end of playback, or by hand),
+                    // "Watching" from a saved position
+                    val status = remember(watchedMarksVersion, syncedWatchedVersion, selectedSeason.id, episode.id) {
+                        if (StorageUtils.isEpisodeWatched(context, series.id, selectedSeason.id, episode.id)) {
+                            WatchStatus.WATCHED
+                        } else {
+                            val key = SyncKeys.episodeProgress(series.id, selectedSeason.id, episode.id)
+                            val progress = ProgressPolicy.status(StorageUtils.loadPlaybackProgress(context, key))
+                            if (progress == WatchStatus.WATCHING) WatchStatus.WATCHING else WatchStatus.UNWATCHED
+                        }
                     }
                     EpisodeItem(
                         episode = episode,
-                        isWatched = isEpisodeWatched,
+                        status = status,
                         onPlayClick = { onEpisodeClick(episode) },
                         onDownloadClick = { onDownloadClick(episode) },
                         onImageClick = { imageUrl ->
@@ -880,7 +883,7 @@ fun SeriesDetailsContent(
 @Composable
 fun EpisodeItem(
     episode: Episode,
-    isWatched: Boolean,
+    status: WatchStatus,
     onPlayClick: () -> Unit,
     onDownloadClick: () -> Unit,
     onImageClick: (String) -> Unit,
@@ -893,7 +896,7 @@ fun EpisodeItem(
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isWatched) 
+            containerColor = if (status == WatchStatus.WATCHED) 
                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
             else 
                 MaterialTheme.colorScheme.surfaceVariant,
@@ -927,8 +930,8 @@ fun EpisodeItem(
                             contentScale = ContentScale.Crop
                         )
                         
-                        // Watched indicator overlay
-                        if (isWatched) {
+                        // Watching / watched indicator overlay
+                        if (status != WatchStatus.UNWATCHED) {
                             Box(
                                 modifier = Modifier
                                     .size(20.dp)
@@ -940,8 +943,8 @@ fun EpisodeItem(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = "Watched",
+                                    imageVector = if (status == WatchStatus.WATCHED) Icons.Default.Check else Icons.Default.PlayArrow,
+                                    contentDescription = watchStatusText(status),
                                     tint = MaterialTheme.colorScheme.onPrimary,
                                     modifier = Modifier.size(12.dp)
                                 )
@@ -972,10 +975,10 @@ fun EpisodeItem(
                         )
                     }
                     
-                    // Watched status text
-                    if (isWatched) {
+                    // Watching / watched status text
+                    watchStatusText(status)?.let { text ->
                         Text(
-                            text = "Watched",
+                            text = text,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Medium

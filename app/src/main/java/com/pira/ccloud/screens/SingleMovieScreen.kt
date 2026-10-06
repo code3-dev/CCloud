@@ -66,9 +66,11 @@ import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.pira.ccloud.components.DownloadOptionsDialog
-import com.pira.ccloud.components.PendingPlayback
-import com.pira.ccloud.components.ResumePlaybackDialog
-import com.pira.ccloud.components.playOrAskToResume
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.compose.runtime.mutableIntStateOf
+import com.pira.ccloud.components.WatchStatusLabel
+import com.pira.ccloud.components.playFromSavedPosition
+import com.pira.ccloud.sync.ProgressPolicy
 import com.pira.ccloud.sync.SyncCollection
 import com.pira.ccloud.sync.SyncKeys
 import com.pira.ccloud.sync.TrailerMarkers
@@ -89,16 +91,10 @@ fun SingleMovieScreen(
 ) {
     var movie by remember { mutableStateOf<Movie?>(null) }
     val context = LocalContext.current
-    // A playback waiting for the resume / start over choice
-    var pendingPlayback by remember { mutableStateOf<PendingPlayback?>(null) }
     val scope = rememberCoroutineScope()
     
     LaunchedEffect(movieId) {
         movie = StorageUtils.loadMovieFromFile(context, movieId)
-    }
-    
-    pendingPlayback?.let { pending ->
-        ResumePlaybackDialog(pending, onDone = { pendingPlayback = null })
     }
     
     // Directly render content without Scaffold since it's already in MainScreen's Scaffold
@@ -107,10 +103,9 @@ fun SingleMovieScreen(
             movie = movie!!,
             onBackClick = { navController.popBackStack() },
             onPlayClick = { source ->
-                // Launch the player, first offering to resume a saved position. Trailers have
-                // no saved position.
+                // Launch the player from the saved position. Trailers have no saved position.
                 val progressKey = if (TrailerMarkers.isTrailer(source)) null else SyncKeys.movieProgress(movieId)
-                scope.launch { pendingPlayback = playOrAskToResume(context, source.url, progressKey) }
+                scope.launch { playFromSavedPosition(context, source.url, progressKey) }
             },
             // Remove any padding from parent Scaffold to use full screen
             modifier = Modifier.fillMaxSize()
@@ -156,6 +151,15 @@ fun MovieDetailsContent(
     val layoutDirection = LocalLayoutDirection.current
     var selectedSource by remember { mutableStateOf<Source?>(null) }
     var showSourceDialog by remember { mutableStateOf(false) }
+    // "Watching" or "Watched", read again when coming back from the player
+    var progressReads by remember { mutableIntStateOf(0) }
+    LifecycleResumeEffect(Unit) {
+        progressReads++
+        onPauseOrDispose { }
+    }
+    val watchStatus = remember(movie.id, progressReads) {
+        ProgressPolicy.status(StorageUtils.loadPlaybackProgress(context, SyncKeys.movieProgress(movie.id)))
+    }
     
     // Source selection dialog
     if (showSourceDialog && selectedSource != null) {
@@ -312,6 +316,8 @@ fun MovieDetailsContent(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
+
+                    WatchStatusLabel(watchStatus, modifier = Modifier.padding(top = 6.dp))
                 }
             }
             

@@ -538,12 +538,4 @@ object StorageUtils {
             null
         }
     }
-
-    fun clearPlaybackProgress(context: Context, key: String) {
-        try {
-            library(context).clearProgress(key)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error clearing playback progress", e)
-        }
-    }
 }

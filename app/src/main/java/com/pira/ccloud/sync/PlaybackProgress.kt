@@ -3,18 +3,34 @@ package com.pira.ccloud.sync
 import com.pira.ccloud.data.model.Episode
 import com.pira.ccloud.data.model.Source
 import com.pira.ccloud.data.model.sync.ProgressValue
-import java.util.Locale
 
-/** When playback positions are saved and offered for resuming. The same rules as the Apple app. */
+/** What a movie or episode shows about its viewing: nothing, "Watching" or "Watched". */
+enum class WatchStatus {
+    UNWATCHED,
+
+    /** Started, with a position to resume from. */
+    WATCHING,
+
+    /** Watched to the end ([ProgressPolicy.COMPLETED_FRACTION]), or marked so. */
+    WATCHED
+}
+
+/** When playback positions are saved and resumed from. The same rules as the Apple app. */
 object ProgressPolicy {
-    /** Nothing is saved before this much has been watched, and no resume is offered below it. */
+    /** Nothing is saved before this much has been watched, and playback doesn't resume below it. */
     const val MIN_POSITION_MS = 30_000L
 
-    /** From this fraction of the duration on, the title counts as finished. */
-    const val COMPLETED_FRACTION = 0.95
+    /**
+     * From this fraction of the duration on, the title counts as watched: an episode gets its
+     * watched mark and the next Play starts from the beginning.
+     */
+    const val COMPLETED_FRACTION = 0.98
 
-    /** How often the position is saved while playing. */
-    const val SAVE_INTERVAL_MS = 10_000L
+    /**
+     * How often the position is saved while playing: every time the shown time changes. Saving
+     * is local; sync pushes positions when playback stops and on its heartbeat.
+     */
+    const val SAVE_INTERVAL_MS = 1_000L
 
     /** At most this many positions are kept; the oldest finished ones go first. */
     const val MAX_RECORDS = 300
@@ -33,25 +49,20 @@ object ProgressPolicy {
         return ProgressValue(positionMs = positionMs, durationMs = duration, completed = false)
     }
 
-    /** The position to offer resuming from, or null if there's nothing to resume. */
+    /** What a title shows for [progress]: watched to the end, started, or neither. */
+    fun status(progress: ProgressValue?): WatchStatus = when {
+        progress == null -> WatchStatus.UNWATCHED
+        progress.completed -> WatchStatus.WATCHED
+        resumePosition(progress) != null -> WatchStatus.WATCHING
+        else -> WatchStatus.UNWATCHED
+    }
+
+    /** The position to resume from, or null to play from the beginning. */
     fun resumePosition(progress: ProgressValue?): Long? {
         if (progress == null || progress.completed) return null
         if (progress.positionMs < MIN_POSITION_MS) return null
         if (progress.durationMs > 0 && progress.positionMs >= progress.durationMs) return null
         return progress.positionMs
-    }
-
-    /** "42:10" or "1:42:10". */
-    fun format(positionMs: Long): String {
-        val totalSeconds = positionMs / 1000
-        val hours = totalSeconds / 3600
-        val minutes = (totalSeconds % 3600) / 60
-        val seconds = totalSeconds % 60
-        return if (hours > 0) {
-            String.format(Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
-        } else {
-            String.format(Locale.US, "%d:%02d", minutes, seconds)
-        }
     }
 }
 

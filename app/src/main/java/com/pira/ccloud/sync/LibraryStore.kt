@@ -230,11 +230,6 @@ class LibraryStore(val records: RecordStore) {
         return value
     }
 
-    /** Forgets the position, so the title starts from the beginning next time ("Start over"). */
-    fun clearProgress(key: String) {
-        records.edit { delete(SyncCollection.PROGRESS, key) }
-    }
-
     /**
      * Keeps at most [ProgressPolicy.MAX_RECORDS] progress records, dropping the oldest finished
      * ones (and tombstones) first, then the oldest unfinished ones. Pruning is local: it doesn't
