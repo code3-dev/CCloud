@@ -25,6 +25,10 @@ android {
         
         // Add memory management options
         multiDexEnabled = true
+
+        // The sync servers' base URLs, ending in /v1 and separated by commas (PROTOCOL.md in the
+        // ccloud-sync repository). Empty: debug builds sync through an in-memory stand-in.
+        buildConfigField("String", "SYNC_SERVERS", "\"\"")
     }
     
     buildFeatures {
@@ -171,6 +175,7 @@ dependencies {
     
     testImplementation(libs.junit)
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
