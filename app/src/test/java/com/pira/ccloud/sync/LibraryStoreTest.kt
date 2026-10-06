@@ -142,7 +142,7 @@ class LibraryStoreTest {
         library.recordProgress(key, 5_000, 6_000_000)
         assertEquals(2_530_000L, library.progress(key)!!.positionMs)
 
-        library.recordProgress(key, 5_800_000, 6_000_000)
+        library.recordProgress(key, 5_900_000, 6_000_000)
         assertTrue(library.progress(key)!!.completed)
         assertNull(ProgressPolicy.resumePosition(library.progress(key)))
     }

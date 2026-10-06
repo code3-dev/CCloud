@@ -66,7 +66,11 @@ import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.pira.ccloud.components.DownloadOptionsDialog
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.compose.runtime.mutableIntStateOf
+import com.pira.ccloud.components.WatchStatusLabel
 import com.pira.ccloud.components.playFromSavedPosition
+import com.pira.ccloud.sync.ProgressPolicy
 import com.pira.ccloud.sync.SyncCollection
 import com.pira.ccloud.sync.SyncKeys
 import com.pira.ccloud.sync.TrailerMarkers
@@ -147,6 +151,15 @@ fun MovieDetailsContent(
     val layoutDirection = LocalLayoutDirection.current
     var selectedSource by remember { mutableStateOf<Source?>(null) }
     var showSourceDialog by remember { mutableStateOf(false) }
+    // "Watching" or "Watched", read again when coming back from the player
+    var progressReads by remember { mutableIntStateOf(0) }
+    LifecycleResumeEffect(Unit) {
+        progressReads++
+        onPauseOrDispose { }
+    }
+    val watchStatus = remember(movie.id, progressReads) {
+        ProgressPolicy.status(StorageUtils.loadPlaybackProgress(context, SyncKeys.movieProgress(movie.id)))
+    }
     
     // Source selection dialog
     if (showSourceDialog && selectedSource != null) {
@@ -303,6 +316,8 @@ fun MovieDetailsContent(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
+
+                    WatchStatusLabel(watchStatus, modifier = Modifier.padding(top = 6.dp))
                 }
             }
             

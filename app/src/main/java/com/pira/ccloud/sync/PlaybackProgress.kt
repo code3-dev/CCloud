@@ -4,13 +4,27 @@ import com.pira.ccloud.data.model.Episode
 import com.pira.ccloud.data.model.Source
 import com.pira.ccloud.data.model.sync.ProgressValue
 
+/** What a movie or episode shows about its viewing: nothing, "Watching" or "Watched". */
+enum class WatchStatus {
+    UNWATCHED,
+
+    /** Started, with a position to resume from. */
+    WATCHING,
+
+    /** Watched to the end ([ProgressPolicy.COMPLETED_FRACTION]), or marked so. */
+    WATCHED
+}
+
 /** When playback positions are saved and resumed from. The same rules as the Apple app. */
 object ProgressPolicy {
     /** Nothing is saved before this much has been watched, and playback doesn't resume below it. */
     const val MIN_POSITION_MS = 30_000L
 
-    /** From this fraction of the duration on, the title counts as finished. */
-    const val COMPLETED_FRACTION = 0.95
+    /**
+     * From this fraction of the duration on, the title counts as watched: an episode gets its
+     * watched mark and the next Play starts from the beginning.
+     */
+    const val COMPLETED_FRACTION = 0.98
 
     /**
      * How often the position is saved while playing: every time the shown time changes. Saving
@@ -33,6 +47,14 @@ object ProgressPolicy {
         }
         if (positionMs < MIN_POSITION_MS) return null
         return ProgressValue(positionMs = positionMs, durationMs = duration, completed = false)
+    }
+
+    /** What a title shows for [progress]: watched to the end, started, or neither. */
+    fun status(progress: ProgressValue?): WatchStatus = when {
+        progress == null -> WatchStatus.UNWATCHED
+        progress.completed -> WatchStatus.WATCHED
+        resumePosition(progress) != null -> WatchStatus.WATCHING
+        else -> WatchStatus.UNWATCHED
     }
 
     /** The position to resume from, or null to play from the beginning. */

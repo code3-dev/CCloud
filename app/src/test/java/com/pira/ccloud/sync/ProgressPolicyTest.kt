@@ -14,10 +14,20 @@ class ProgressPolicyTest {
     fun evaluate() {
         assertNull(ProgressPolicy.evaluate(29_999, 6_000_000))
         assertEquals(ProgressValue(30_000, 6_000_000, false), ProgressPolicy.evaluate(30_000, 6_000_000))
-        assertEquals(ProgressValue(0, 6_000_000, true), ProgressPolicy.evaluate(5_700_000, 6_000_000))
+        // Watched from 98 %
+        assertEquals(ProgressValue(5_870_000, 6_000_000, false), ProgressPolicy.evaluate(5_870_000, 6_000_000))
+        assertEquals(ProgressValue(0, 6_000_000, true), ProgressPolicy.evaluate(5_880_000, 6_000_000))
         // Unknown duration (live or not loaded yet): position only, never "finished"
         assertEquals(ProgressValue(60_000, 0, false), ProgressPolicy.evaluate(60_000, -1))
         assertNull(ProgressPolicy.evaluate(-5, 6_000_000))
+    }
+
+    @Test
+    fun status() {
+        assertEquals(WatchStatus.UNWATCHED, ProgressPolicy.status(null))
+        assertEquals(WatchStatus.UNWATCHED, ProgressPolicy.status(ProgressValue(10_000, 6_000_000, false)))
+        assertEquals(WatchStatus.WATCHING, ProgressPolicy.status(ProgressValue(600_000, 6_000_000, false)))
+        assertEquals(WatchStatus.WATCHED, ProgressPolicy.status(ProgressValue(0, 6_000_000, true)))
     }
 
     @Test
