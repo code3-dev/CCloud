@@ -7,22 +7,22 @@
 <div align="center">
 
   <!-- Downloads -->
-  <img src="https://img.shields.io/github/downloads/code3-dev/CCloud/total?label=Downloads&style=for-the-badge" alt="Downloads Badge">
+  <img src="https://img.shields.io/github/downloads/ChosoMeister/CCloud/total?label=Downloads&style=for-the-badge" alt="Downloads Badge">
 
   <!-- Main language -->
-  <img src="https://img.shields.io/github/languages/top/code3-dev/CCloud?color=blue&label=Kotlin&style=for-the-badge" alt="Language">
+  <img src="https://img.shields.io/github/languages/top/ChosoMeister/CCloud?color=blue&label=Kotlin&style=for-the-badge" alt="Language">
 
   <!-- License -->
-  <img src="https://img.shields.io/github/license/code3-dev/CCloud?style=for-the-badge" alt="License">
+  <img src="https://img.shields.io/github/license/ChosoMeister/CCloud?style=for-the-badge" alt="License">
 
   <!-- Stars -->
-  <img src="https://img.shields.io/github/stars/code3-dev/CCloud?style=for-the-badge" alt="Stars">
+  <img src="https://img.shields.io/github/stars/ChosoMeister/CCloud?style=for-the-badge" alt="Stars">
 
   <!-- Issues -->
-  <img src="https://img.shields.io/github/issues/code3-dev/CCloud?style=for-the-badge" alt="Issues">
+  <img src="https://img.shields.io/github/issues/ChosoMeister/CCloud?style=for-the-badge" alt="Issues">
 
   <!-- Build Status -->
-  <img src="https://img.shields.io/github/actions/workflow/status/code3-dev/CCloud/build-appshare.yml?label=Build&style=for-the-badge" alt="Build Status">
+  <img src="https://img.shields.io/github/actions/workflow/status/ChosoMeister/CCloud/build-appshare.yml?label=Build&style=for-the-badge" alt="Build Status">
 
   <!-- Min Android Version -->
   <img src="https://img.shields.io/badge/Android-7.0%2B-green?style=for-the-badge&logo=android" alt="Min Android">
@@ -34,15 +34,33 @@
 
 ---
 
-CCloud is a modern Android streaming application built with Jetpack Compose and Kotlin. The app provides a sleek user interface for browsing movies and TV series, playing videos, and customizing the viewing experience. With a focus on user experience and performance, CCloud delivers high-quality streaming content in an intuitive and visually appealing interface.
+CCloud is a modern Android movie and TV series discovery and streaming application built with Kotlin and Jetpack Compose. It combines a catalog of playable titles with TMDB metadata, artwork, and discovery tools. Browse movies and series, inspect detailed title information, save favorites, and watch available video sources on phones, tablets, or Android TV.
 
-## 📦 Download Latest CCloud APKs
+## 📸 Screenshots
+
+These screenshots were captured from the universal app running on an Android TV emulator. Featured titles, catalog contents, and artwork can change over time.
+
+<p align="center">
+  <img src="docs/images/01-home.png" alt="CCloud home screen with featured title and movie rows" width="49%" />
+  <img src="docs/images/02-details.png" alt="CCloud cinematic title details screen" width="49%" />
+</p>
+<p align="center">
+  <img src="docs/images/03-movies.png" alt="CCloud movie catalog with sort and genre filters" width="49%" />
+  <img src="docs/images/04-current.png" alt="CCloud title details with cast and reviews" width="49%" />
+</p>
+
+## 📦 Download CCloud
 
 <div align="center">
 
-[![Universal](https://img.shields.io/badge/⬇️%20Download-Universal-purple?style=for-the-badge&logo=android)](https://github.com/code3-dev/CCloud/releases/latest/download/CCloud-universal.apk)
+[![Universal](https://img.shields.io/badge/⬇️%20Download-Universal-purple?style=for-the-badge&logo=android)](https://github.com/ChosoMeister/CCloud/releases/latest/download/CCloud-universal.apk)
 
 </div>
+
+The latest published release is **v2.0.1**. It is one universal APK for Android phones, tablets, and Android TV, rather than separate phone and TV downloads. The same package includes both Android and Leanback/TV launchers and supports the project's ARM and x86 ABI targets.
+
+- [Download the latest universal APK](https://github.com/ChosoMeister/CCloud/releases/latest/download/CCloud-universal.apk)
+- [View release notes and previous versions](https://github.com/ChosoMeister/CCloud/releases)
 
 ## 🚀 Key Features
 
@@ -50,6 +68,12 @@ CCloud is a modern Android streaming application built with Jetpack Compose and 
 - **Browse Movies & Series**: Attractive grid layout for discovering content
 - **Powerful Search**: Search across both movies and TV series with real-time results
 - **Detailed Information**: Comprehensive details for each movie and series including ratings, genres, and descriptions
+- **TMDB Genre Discovery**: Browse movie and series genres using their separate TMDB genre lists
+- **Progressive Results**: Continue loading genre results page by page up to the page count reported by TMDB, instead of stopping after a small fixed set
+- **Cast-Based Discovery**: Open a cast member's related movie or series credits and narrow those results by genre
+- **Catalog-Aware Results**: TMDB is used for discovery and metadata; titles are matched to CCloud's catalog before the app presents catalog-specific viewing options
+- **Safer Metadata Matching**: Match candidates by media type, normalized/original title, release year, and IMDb ID when available; ambiguous same-name titles are left unmatched instead of showing unrelated metadata
+- **Curated Home Rows**: Discover trending and selected titles in home-page rails alongside catalog content
 
 ### ▶️ Media Playback
 - **Custom Video Player**: Built with ExoPlayer for smooth video playback
@@ -64,12 +88,16 @@ CCloud is a modern Android streaming application built with Jetpack Compose and 
 - **Bulk Actions**: Clear all favorites with a single action
 
 ### 🎨 Personalization
-- **Theme Customization**: Light, dark, and system themes with color options
+- **Theme Customization**: Light, dark, and system themes with color options; dark is the default appearance
 - **Subtitle Settings**: Customize subtitle appearance (background, text color, border, size)
 - **Responsive UI**: Material Design 3 interface that adapts to all screen sizes
 
 ### 📱 User Experience
 - **Intuitive Navigation**: Bottom navigation for mobile/tablet and sidebar navigation for TV
+- **Featured Home Banner**: A large rotating title banner includes artwork, useful metadata, a short description, and a Details action so users can review a title before choosing what to watch
+- **Multiple Carousel Controls**: The featured banner supports automatic rotation, manual TV remote/D-pad navigation, and touch swiping on mobile
+- **Visible TV Focus**: TV controls and cards use clear focus styling, with navigation paths between the featured banner, sidebar, and content rows
+- **Screen-Safe Layout**: TV spacing and banner sizing are tuned to keep important content within common television overscan boundaries
 - **Error Handling**: Retry mechanisms for failed requests
 - **Loading States**: Shimmer loading animations for smooth user experience
 - **Season & Episode Management**: Easy navigation through TV series seasons and episodes
@@ -78,7 +106,22 @@ CCloud is a modern Android streaming application built with Jetpack Compose and 
 - **Optimized Layout**: Sidebar navigation for better TV experience
 - **Full Screen Support**: Content fills the entire TV screen
 - **Remote Control Navigation**: D-pad optimized navigation
+- **One Universal APK**: The same Android package includes the mobile/tablet and Android TV entry points
 - **Cross-Platform Compatibility**: Works on mobile, tablet, and TV with adaptive UI
+
+## ✨ Recent Improvements
+
+The current release incorporates a series of improvements to discovery, title matching, and the experience across Android and TV:
+
+- Replaced the small, fixed TMDB genre result set with progressive pagination that follows the total page count reported by TMDB. Users can keep loading results as they browse.
+- Added TMDB genre browsing for movies and series, cast-based title discovery, and the ability to combine a cast selection with a genre filter.
+- Improved metadata matching for titles with alternate/original-language names, release-year differences, and similarly named movies or series. The matcher checks media type and title/year evidence, uses IMDb IDs when available, and leaves ambiguous matches unresolved to avoid attaching the wrong cast, reviews, or artwork.
+- Expanded title details with cinematic backdrop artwork and available TMDB metadata such as ratings, cast, crew, trailers, reviews, and recommendations.
+- Reworked the home featured banner into a larger carousel with an explicit **Details** action, automatic rotation, D-pad controls on TV, and swipe support on mobile. Mobile page changes settle fully instead of stopping between slides.
+- Improved TV focus visibility and navigation between the featured banner, sidebar, and home rows; adjusted the TV layout to keep content inside screen edges and make the banner easier to see.
+- Set the dark appearance as the default and refined the app's shared cinematic styling.
+- Added a Settings field for a personal TMDB API key/token. A user-provided value takes precedence over the build-provided token and can be cleared to return to the built-in value.
+- Built and published one signed universal APK for Android and Android TV. The release artifact was installed and launched on phone and TV emulators.
 
 ## 🛠️ Tech Stack
 
@@ -107,16 +150,16 @@ The app follows a clean architecture pattern with the following components:
 
 ## 📱 Supported Android Versions
 
-CCloud supports Android 8.0 (API level 24) and higher. The app is optimized for:
+CCloud supports Android 7.0 (API level 24) and higher. The app is optimized for:
 
-- **Android 8.0 - 16** (API levels 24-36)
+- **Android 7.0 - 16** (API levels 24-36)
 - **Android TV** devices
 - **Tablets** and large-screen devices
 
 ### Compatibility Notes
 
-- **Android 6.0 and earlier**: Not supported due to Jetpack Compose limitations
-- **Android 7.0+**: Full feature support with optimal performance
+- **Android 6.0 and earlier**: Not supported; the app's minimum SDK is API 24
+- **Android 7.0+**: Supported minimum OS version (API 24)
 - **Android TV**: Specialized UI with remote control navigation
 
 ## Getting Started
@@ -130,7 +173,7 @@ CCloud supports Android 8.0 (API level 24) and higher. The app is optimized for:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/code3-dev/CCloud.git
+   git clone https://github.com/ChosoMeister/CCloud.git
    ```
 
 2. Open the project in Android Studio
@@ -148,6 +191,8 @@ To build the release APK:
 ```bash
 ./gradlew assembleRelease
 ```
+
+The universal APK is produced alongside ABI-specific APK outputs as `app-universal-debug.apk` or `app-universal-release.apk`. Release builds require signing configuration. The GitHub Actions release workflow configures signing from repository secrets and publishes `CCloud-universal.apk` to GitHub Releases; never commit keystore files, signing passwords, or API tokens.
 
 ### Fixing Gradle Wrapper Issues
 
@@ -235,12 +280,14 @@ Users can customize their experience through the settings screen:
 - Infinite scrolling for loading more content
 - Error handling with retry option
 - Shimmer loading animations
+- Sort and filter catalog titles by genre
 
 ### 📺 Series Screen
 - Browse TV series with comprehensive information
 - Season and episode organization
 - Pull-to-refresh and infinite scrolling
 - Error handling with retry option
+- Sort and filter catalog series by genre
 
 ### ❤️ Favorites Screen
 - View all saved movies and series in one place
@@ -254,6 +301,10 @@ Users can customize their experience through the settings screen:
 - Instant results as you type
 - Error handling with retry button
 - Clear search functionality
+- Browse TMDB genres after selecting Movies or Series
+- Load more results progressively as you move through the result list
+- Open cast-based discovery from title details and combine it with a genre filter
+- If a TMDB title cannot be matched confidently to the playable catalog, it remains discovery metadata rather than being presented as a playable item
 
 ### 📄 Single Movie Screen
 - Detailed movie information
@@ -275,6 +326,8 @@ Users can customize their experience through the settings screen:
 - Primary and secondary color selection
 - Subtitle settings (colors and text size)
 - Reset to default options
+- Enter a personal TMDB API key/token for TMDB-powered genres and discovery; the personal value takes precedence over the bundled build token
+- Use the built-in token again by clearing the personal value
 
 ### 🏠 Navigation
 The app uses adaptive navigation:
@@ -297,6 +350,8 @@ The app uses adaptive navigation:
 - Use **Left/Right** arrow keys to navigate between items in a row
 - Use **Up/Down** arrow keys to move between rows
 - Press **Select (OK)** to open details for a selected movie or series
+- On the featured home banner, use **Left/Right** to move through titles; the banner can also advance automatically
+- Use **Down** from the featured home banner to move into the content rows
 
 ### Media Playback Controls
 - **Play/Pause**: Press the **Select (OK)** button or **Play/Pause** button when focused on the player
@@ -318,6 +373,7 @@ When watching videos on Android TV, you can control playback using your remote c
 - **Up/Down/Left/Right**: Move between keyboard keys
 - **Select (OK)**: Press the selected key
 - **Backspace**: Press the back button to delete characters
+- Select a media type to load TMDB genre filters, then use the result list to continue loading more pages
 
 ### Settings Navigation (TV)
 - In the Settings screen, use **Up/Down** to navigate between cards
@@ -330,7 +386,7 @@ When watching videos on Android TV, you can control playback using your remote c
   - Theme Settings → Video Player Settings → About → Check for Updates → Reset to Defaults
 
 ### Favorites Management (TV)
-- Access the Favorites screen through the Settings menu
+- Access the Favorites screen from the sidebar
 - Navigate through saved items using the D-pad
 - Press **Select (OK)** to open a saved item
 - Use the context menu to remove individual items or clear all favorites
@@ -347,14 +403,14 @@ When watching videos on Android TV, you can control playback using your remote c
 
 ### ⭐ Stars History
 
-[![Stargazers over time](https://starchart.cc/code3-dev/CCloud.svg?variant=adaptive)](https://starchart.cc/code3-dev/CCloud)
+[![Stargazers over time](https://starchart.cc/ChosoMeister/CCloud.svg?variant=adaptive)](https://starchart.cc/ChosoMeister/CCloud)
 
 ---
 
 ### 📊 Downloads History
 
-![GitHub all releases](https://img.shields.io/github/downloads/code3-dev/CCloud/total?style=for-the-badge&label=Total%20Downloads)
-![GitHub release (latest by date)](https://img.shields.io/github/downloads/code3-dev/CCloud/latest/total?style=for-the-badge&label=Latest%20Release)
+![GitHub all releases](https://img.shields.io/github/downloads/ChosoMeister/CCloud/total?style=for-the-badge&label=Total%20Downloads)
+![GitHub release (latest by date)](https://img.shields.io/github/downloads/ChosoMeister/CCloud/latest/total?style=for-the-badge&label=Latest%20Release)
 
 </div>
 
